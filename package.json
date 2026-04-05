@@ -1,18 +1,20 @@
 {
   "name": "quick-memo",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A CLI tool for quick note taking with tags and search",
   "main": "src/index.js",
   "bin": {
     "memo": "./bin/memo"
   },
   "scripts": {
-    "test": "node tests/test.js"
+    "test": "node tests/test.js",
+    "start": "node bin/memo"
   },
   "keywords": ["productivity", "notes", "cli"],
   "author": "OpenClaw",
   "license": "MIT",
   "dependencies": {
+    "chalk": "^4.1.2",
     "commander": "^11.0.0"
   },
   "engines": {

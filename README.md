@@ -4,13 +4,17 @@
 
 ## ✨ Features
 
-- **Add notes** with optional comma-separated tags
-- **List notes** with optional tag filter (`memo list <tag>`)
+- **Add notes** with optional comma-separated tags (validates non-empty content)
+- **List notes** with optional tag filter, sorting, and detailed view
 - **Search notes** by content (case-insensitive)
-- **Delete notes** by ID (`memo delete <id>`)
-- **Edit notes** by ID (`memo edit <id> <new-text> [new-tags...]`)
+- **Delete notes** by ID with safety confirmation
+- **Edit notes** by ID (updates content and/or tags)
 - **Statistics** showing total notes and tag frequency
+- **Tag management** – list all tags with usage counts
+- **Data safety** – backup/restore commands, corrupted file recovery
+- **Export** notes to Markdown format
 - **JSON output** for scripting and automation (`-j` flag)
+- **Colored terminal output** for better UX
 - **Local storage** in `~/.quick-memo/notes.json` (portable, no cloud)
 - **Zero config** – works out of the box
 
@@ -30,46 +34,56 @@ Ensure you have Node.js >= 14 installed.
 memo add "Buy groceries" grocery urgent
 ```
 
+Notes with empty content are rejected.
+
 ### List all notes
 
 ```bash
 memo list
 ```
 
-Output:
+Output (colored):
 ```
 [abc123] Buy groceries (grocery, urgent)
 [def456] Prepare presentation (work)
 ```
 
-### Filter by tag
+### List with options
 
 ```bash
+# Filter by tag
 memo list grocery
-```
 
-### JSON output (for scripting)
+# Detailed view with timestamps
+memo list -d
 
-```bash
+# Sort options
+memo list --sort created --asc       # Oldest first
+memo list --sort updated            # Most recently updated
+memo list --sort content            # Alphabetical by content
+
+# JSON output for scripting
 memo list -j
 ```
 
 ### Delete a note
 
 ```bash
+# With confirmation prompt
 memo delete abc123
+
+# Skip confirmation (use with caution)
+memo delete abc123 --force
 ```
 
 ### Edit a note
 
 ```bash
+# Edit content only (keeps existing tags)
+memo edit abc123 "Buy organic groceries"
+
+# Edit content and replace all tags
 memo edit abc123 "Buy organic groceries" grocery urgent
-```
-
-### Detailed view (with timestamps)
-
-```bash
-memo list -d
 ```
 
 ### Search notes
@@ -86,12 +100,47 @@ memo stats
 
 Output:
 ```
+📊 Quick Memo Statistics
 Total notes: 15
+
 Tag usage:
-  work: 7
-  personal: 5
-  urgent: 3
+  work           7
+  personal       5
+  urgent         3
 ```
+
+### List all tags
+
+```bash
+memo tags
+```
+
+Shows all tags used across notes with counts.
+
+### Backup and Restore
+
+```bash
+# Create a backup (auto-generates timestamped filename)
+memo backup
+
+# Backup to specific location
+memo backup ~/backups/notes-2026-04-05.json
+
+# Restore from backup
+memo restore ~/backups/notes-2026-04-05.json
+```
+
+### Export to Markdown
+
+```bash
+# Export with tag summary
+memo export ~/exports/my-notes.md --tags
+
+# Export without tag summary
+memo export
+```
+
+Creates a nicely formatted Markdown file with all notes and optional tag summary.
 
 ## 🗃️ Storage
 
@@ -103,7 +152,8 @@ Notes are stored in `~/.quick-memo/notes.json`. You can back up this file to mig
     "id": "abc123",
     "content": "Buy groceries",
     "tags": ["grocery", "urgent"],
-    "createdAt": 1701624000000
+    "createdAt": 1701624000000,
+    "updatedAt": 1701700000000
   }
 ]
 ```
@@ -113,6 +163,18 @@ If you want to use a custom location, set the `QUICK_MEMO_PATH` environment vari
 ```bash
 export QUICK_MEMO_PATH="/path/to/notes.json"
 ```
+
+### 🔄 File Recovery
+
+If your notes file becomes corrupted, Quick Memo will:
+1. Back up the corrupted file with a timestamp (`.corrupt-<timestamp>`)
+2. Start with a fresh empty notes store
+
+You can then attempt to recover data from the backup manually.
+
+### Environment Variables
+
+- `QUICK_MEMO_PATH` – Custom path to notes.json file
 
 ## 🧪 Testing
 
@@ -132,13 +194,24 @@ Contributions welcome! Fork the repo and open a PR.
 
 ## 🔮 Roadmap
 
-Potential future features:
+Completed in v1.1.0:
+- ✅ Colored terminal output
+- ✅ Delete confirmation
+- ✅ Sorting options (by created, updated, content)
+- ✅ Backup and restore commands
+- ✅ Export to Markdown
+- ✅ Tag listing command
+- ✅ Corrupted file auto-backup
+- ✅ Input validation
+- ✅ Improved error handling
+
+Future ideas:
 - Tag autocomplete
-- Export to Markdown (CSV, JSON)
-- Due dates and reminders
 - Fuzzy search
-- Colorized output
-- Backup and restore commands
+- Due dates and reminders
+- CSV export
+- Configuration file for defaults
+- Note categories/pinned notes
 
 ---
 
