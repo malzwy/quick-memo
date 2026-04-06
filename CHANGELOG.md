@@ -53,6 +53,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[Unreleased]: https://github.com/your-username/quick-memo/compare/v1.1.0...HEAD
-[1.1.0]: https://github.com/your-username/quick-memo/releases/tag/v1.1.0
-[1.0.0]: https://github.com/your-username/quick-memo/releases/tag/v1.0.0
+[Unreleased]: https://github.com/malzwy/quick-memo/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/malzwy/quick-memo/releases/tag/v1.1.0
+[1.0.0]: https://github.com/malzwy/quick-memo/releases/tag/v1.0.0

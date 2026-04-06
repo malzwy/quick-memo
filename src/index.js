@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const { program } = require('commander');
+const pkg = require('../package');
 const Store = require('./lib/store');
 const { generateId } = require('./lib/utils');
 const chalk = require('chalk');
@@ -23,7 +24,7 @@ function formatNote(note, detailed = false) {
 program
   .name('memo')
   .description('CLI tool for quick notes')
-  .version('1.0.0');
+  .version(pkg.version);
 
 program
   .command('add <text> [tags...]')
@@ -62,17 +63,7 @@ program
     let notes = store.getNotes();
     const filtered = tag ? notes.filter(n => n.tags.includes(tag)) : notes;
     
-    if (options.json) {
-      console.log(JSON.stringify(filtered, null, 2));
-      return;
-    }
-    
-    if (filtered.length === 0) {
-      info('No notes found.');
-      return;
-    }
-    
-    // Sort notes
+    // Sort notes (apply before any output)
     filtered.sort((a, b) => {
       let valA, valB;
       switch (options.sort) {
@@ -94,6 +85,16 @@ program
       if (valA > valB) return options.asc ? 1 : -1;
       return 0;
     });
+    
+    if (options.json) {
+      console.log(JSON.stringify(filtered, null, 2));
+      return;
+    }
+    
+    if (filtered.length === 0) {
+      info('No notes found.');
+      return;
+    }
     
     filtered.forEach(note => {
       if (options.detailed) {
