@@ -5,6 +5,28 @@ All notable changes to Quick Memo will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-04-07
+
+### Added
+- 📤 New `export-csv` command to export notes to CSV format
+  - Proper RFC 4180 escaping for fields containing commas, quotes, or newlines
+  - `--no-header` flag to omit header row (default includes header)
+  - Output includes: ID, Content, Tags (semicolon-separated), Created (ISO 8601), Updated (ISO 8601)
+
+### Fixed
+- Version display now correctly reflects package.json version (dynamic)
+- Sorting applied before JSON output to ensure consistent scripting results
+- Documentation URLs updated to point to correct repository
+
+---
+
+## [1.1.1] - 2026-04-06
+
+### Fixed
+- Resolved CLI version mismatch (now uses `pkg.version` instead of hardcoded)
+- Fixed JSON output to respect sorting options for scripting consistency
+- Updated CHANGELOG links to correct repository (malzwy/quick-memo)
+
 ## [1.1.0] - 2026-04-05
 
 ### Added
@@ -53,6 +75,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[Unreleased]: https://github.com/malzwy/quick-memo/compare/v1.1.0...HEAD
+[1.3.0]: https://github.com/malzwy/quick-memo/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/malzwy/quick-memo/releases/tag/v1.2.0
+[1.1.1]: https://github.com/malzwy/quick-memo/releases/tag/v1.1.1
 [1.1.0]: https://github.com/malzwy/quick-memo/releases/tag/v1.1.0
 [1.0.0]: https://github.com/malzwy/quick-memo/releases/tag/v1.0.0

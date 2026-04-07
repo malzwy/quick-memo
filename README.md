@@ -13,6 +13,7 @@
 - **Tag management** – list all tags with usage counts
 - **Data safety** – backup/restore commands, corrupted file recovery
 - **Export** notes to Markdown format
+- **Export to CSV** for spreadsheet/data analysis
 - **JSON output** for scripting and automation (`-j` flag)
 - **Colored terminal output** for better UX
 - **Local storage** in `~/.quick-memo/notes.json` (portable, no cloud)
@@ -141,6 +142,18 @@ memo export
 ```
 
 Creates a nicely formatted Markdown file with all notes and optional tag summary.
+
+### Export to CSV
+
+```bash
+# Export with header (default)
+memo export-csv ~/exports/my-notes.csv
+
+# Export without header
+memo export-csv ~/exports/my-notes.csv --no-header
+```
+
+Exports notes to CSV format with fields: ID, Content, Tags (semicolon-separated), Created (ISO 8601), Updated (ISO 8601). Useful for spreadsheet import and data analysis.
 
 ## 🗃️ Storage
 

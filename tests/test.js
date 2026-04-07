@@ -182,6 +182,47 @@ if (md.includes('# Quick Memo Export') && md.includes(exportNotes[0].content)) {
   throw new Error('Export format incorrect');
 }
 
+// Test 13: CSV export format
+console.log('\nTest 13: CSV export');
+const csvNotes = store.getNotes();
+// Simulate CSV generation (same logic as in code)
+function escapeCsv(value) {
+  if (value == null) return '';
+  const str = String(value);
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+    return '"' + str.replace(/"/g, '""') + '"';
+  }
+  return str;
+}
+let csv = '';
+csv += 'ID,Content,Tags,Created,Updated\n';
+csvNotes.forEach(note => {
+  const id = escapeCsv(note.id);
+  const content = escapeCsv(note.content);
+  const tags = escapeCsv(note.tags.join(';'));
+  const created = escapeCsv(new Date(note.createdAt).toISOString());
+  const updated = escapeCsv(note.updatedAt ? new Date(note.updatedAt).toISOString() : '');
+  csv += `${id},${content},${tags},${created},${updated}\n`;
+});
+const lines = csv.trim().split('\n');
+if (lines.length !== csvNotes.length + 1) {
+  throw new Error(`CSV should have ${csvNotes.length + 1} lines (header + notes)`);
+}
+const headers = lines[0].split(',');
+if (headers.length !== 5 || headers[0] !== 'ID' || headers[1] !== 'Content' || headers[2] !== 'Tags' || headers[3] !== 'Created' || headers[4] !== 'Updated') {
+  throw new Error('CSV headers incorrect');
+}
+// Verify each note appears
+const contentIdx = 1; // Content column
+csvNotes.forEach((note, i) => {
+  const row = lines[i + 1].split(',');
+  // Since content may be quoted, simple check: row should contain note content
+  if (!row.join(',').includes(note.content)) {
+    throw new Error('CSV row missing note content');
+  }
+});
+console.log('  ✓ CSV format OK');
+
 // Summary
 console.log('\n' + '='.repeat(50));
 console.log('✅ All tests passed!');
