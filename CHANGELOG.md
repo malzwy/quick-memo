@@ -5,6 +5,15 @@ All notable changes to Quick Memo will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-04-10
+
+### Fixed
+- Fixed backup command crash when called without arguments (parameter shadowing)
+- Ensured backup directory exists for custom paths
+- Updated documentation to include trash commands and CSV export
+
+---
+
 ## [1.2.0] - 2026-04-07
 
 ### Added

@@ -7,11 +7,12 @@
 - **Add notes** with optional comma-separated tags (validates non-empty content)
 - **List notes** with optional tag filter, sorting, and detailed view
 - **Search notes** by content (case-insensitive)
-- **Delete notes** by ID with safety confirmation
+- **Delete notes** by ID with safety confirmation (or `--force` to skip)
 - **Edit notes** by ID (updates content and/or tags)
 - **Statistics** showing total notes and tag frequency
 - **Tag management** – list all tags with usage counts
 - **Data safety** – backup/restore commands, corrupted file recovery
+- **Soft delete (Trash)** – move notes to trash, restore, or permanently delete
 - **Export** notes to Markdown format
 - **Export to CSV** for spreadsheet/data analysis
 - **JSON output** for scripting and automation (`-j` flag)
@@ -131,6 +132,33 @@ memo backup ~/backups/notes-2026-04-05.json
 memo restore ~/backups/notes-2026-04-05.json
 ```
 
+### Trash Commands
+
+Quick Memo supports soft delete via a trash bin.
+
+```bash
+# Move a note to trash (soft delete)
+memo trash abc123
+
+# List all trashed notes
+memo trash-list
+
+# Restore a note from trash
+memo trash-restore abc123
+
+# Permanently delete a single note from trash (with confirmation)
+memo purge abc123
+
+# Permanently delete all trashed notes (with confirmation)
+memo trash-empty
+
+# Use --force to skip confirmation prompts
+memo purge abc123 --force
+memo trash-empty --force
+```
+
+Trashed notes retain their original metadata and can be restored. Use `purge` or `trash-empty` to permanently delete without recovery.
+
 ### Export to Markdown
 
 ```bash
@@ -222,7 +250,6 @@ Future ideas:
 - Tag autocomplete
 - Fuzzy search
 - Due dates and reminders
-- CSV export
 - Configuration file for defaults
 - Note categories/pinned notes
 

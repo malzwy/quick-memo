@@ -182,8 +182,90 @@ if (md.includes('# Quick Memo Export') && md.includes(exportNotes[0].content)) {
   throw new Error('Export format incorrect');
 }
 
-// Test 13: CSV export format
-console.log('\nTest 13: CSV export');
+// Test 13: Trash functionality
+console.log('\nTest 13: Trash functionality');
+const noteToTrash = afterEdit[0];
+const trashId = noteToTrash.id;
+
+// Test trashNote
+const trashed = store.trashNote(trashId);
+if (trashed.id !== trashId) {
+  throw new Error('trashNote should return trashed note');
+}
+if (!trashed.trashedAt) {
+  throw new Error('Trashed note should have trashedAt timestamp');
+}
+const notesAfterTrash = store.getNotes();
+if (notesAfterTrash.some(n => n.id === trashId)) {
+  throw new Error('Note should not exist in main notes after trash');
+}
+const trashNotes = store.getTrashNotes();
+if (trashNotes.length !== 1) {
+  throw new Error('Should have 1 note in trash');
+}
+if (trashNotes[0].id !== trashId) {
+  throw new Error('Trash should contain correct note');
+}
+console.log('  ✓ Trash note OK');
+
+// Test trash-list
+const trashList = store.getTrashNotes();
+if (trashList.length !== 1) {
+  throw new Error('trash-list should return 1 note');
+}
+console.log('  ✓ Trash list OK');
+
+// Test restoreNote
+const restored = store.restoreNote(trashId);
+if (restored.id !== trashId) {
+  throw new Error('restoreNote should return restored note');
+}
+if (restored.trashedAt) {
+  throw new Error('Restored note should not have trashedAt');
+}
+const notesAfterRestore = store.getNotes();
+if (!notesAfterRestore.some(n => n.id === trashId)) {
+  throw new Error('Restored note should exist in main notes');
+}
+const trashAfterRestore = store.getTrashNotes();
+if (trashAfterRestore.length !== 0) {
+  throw new Error('Trash should be empty after restore');
+}
+console.log('  ✓ Restore note OK');
+
+// Test trash-empty
+const newNote = { id: generateId(), content: 'Test for empty', tags: [], createdAt: Date.now() };
+store.addNote(newNote);
+const emptyTrashId = newNote.id;
+store.trashNote(emptyTrashId);
+const trashBeforeEmpty = store.getTrashNotes();
+if (trashBeforeEmpty.length !== 1) {
+  throw new Error('Should have 1 note in trash before empty');
+}
+store.emptyTrash();
+const trashAfterEmpty = store.getTrashNotes();
+if (trashAfterEmpty.length !== 0) {
+  throw new Error('Trash should be empty after emptyTrash');
+}
+const notesAfterEmpty = store.getNotes();
+if (notesAfterEmpty.some(n => n.id === emptyTrashId)) {
+  throw new Error('Note should not exist after empty trash');
+}
+console.log('  ✓ Trash empty OK');
+
+// Test permanentlyDelete
+const newNote2 = { id: generateId(), content: 'Test for permanent delete', tags: [], createdAt: Date.now() };
+store.addNote(newNote2);
+const permDeleteId = newNote2.id;
+store.permanentlyDelete(permDeleteId);
+const notesAfterPermDelete = store.getNotes();
+if (notesAfterPermDelete.some(n => n.id === permDeleteId)) {
+  throw new Error('Note should not exist after permanent delete');
+}
+console.log('  ✓ Permanent delete OK');
+
+// Test 14: CSV export format
+console.log('\nTest 14: CSV export');
 const csvNotes = store.getNotes();
 // Simulate CSV generation (same logic as in code)
 function escapeCsv(value) {
@@ -228,4 +310,5 @@ console.log('\n' + '='.repeat(50));
 console.log('✅ All tests passed!');
 console.log(`Total notes in test store: ${store.getNotes().length}`);
 console.log('Tags present:', Object.keys(tagsCount).join(', ') || 'none');
+console.log(`Test coverage: 14 test categories`);
 console.log('='.repeat(50));

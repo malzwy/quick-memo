@@ -8,6 +8,7 @@ class Store {
     } else {
       this.dataPath = path.join(require('os').homedir(), '.quick-memo', 'notes.json');
     }
+    this.trashPath = this.dataPath.replace(/\.json$/, '.trash.json');
     this.ensureDir();
   }
 
@@ -62,6 +63,105 @@ class Store {
 
   getNotes() {
     return this.loadNotes();
+  }
+
+  loadTrash() {
+    if (!fs.existsSync(this.trashPath)) {
+      return [];
+    }
+    try {
+      const data = fs.readFileSync(this.trashPath, 'utf8');
+      return JSON.parse(data);
+    } catch (e) {
+      // Backup corrupted trash file
+      const backupPath = this.trashPath + '.corrupt-' + Date.now();
+      try {
+        if (fs.existsSync(this.trashPath)) {
+          fs.copyFileSync(this.trashPath, backupPath);
+          console.error(`Corrupted trash file backed up to: ${backupPath}`);
+        }
+      } catch (backupErr) {
+        // Ignore backup errors
+      }
+      console.error('Error reading trash, starting fresh. Previous data backed up.');
+      return [];
+    }
+  }
+
+  saveTrash(trash) {
+    try {
+      fs.writeFileSync(this.trashPath, JSON.stringify(trash, null, 2));
+    } catch (e) {
+      console.error(`Failed to save trash to ${this.trashPath}: ${e.message}`);
+      throw e;
+    }
+  }
+
+  trashNote(id) {
+    const notes = this.loadNotes();
+    const index = notes.findIndex(n => n.id === id);
+    if (index === -1) {
+      throw new Error(`Note with ID ${id} not found.`);
+    }
+    const trashed = notes.splice(index, 1)[0];
+    trashed.trashedAt = Date.now();
+    const trash = this.loadTrash();
+    trash.push(trashed);
+    this.saveNotes(notes);
+    this.saveTrash(trash);
+    return trashed;
+  }
+
+  getTrashNotes() {
+    return this.loadTrash();
+  }
+
+  restoreNote(id) {
+    const trash = this.loadTrash();
+    const index = trash.findIndex(n => n.id === id);
+    if (index === -1) {
+      throw new Error(`Note with ID ${id} not found in trash.`);
+    }
+    const restored = trash.splice(index, 1)[0];
+    delete restored.trashedAt;
+    const notes = this.loadNotes();
+    notes.push(restored);
+    this.saveNotes(notes);
+    this.saveTrash(trash);
+    return restored;
+  }
+
+  permanentlyDelete(id) {
+    // First try to delete from main notes (if not already trashed)
+    const notes = this.loadNotes();
+    const noteIndex = notes.findIndex(n => n.id === id);
+    if (noteIndex !== -1) {
+      notes.splice(noteIndex, 1);
+      this.saveNotes(notes);
+      return true;
+    }
+    // Then try to delete from trash
+    const trash = this.loadTrash();
+    const trashIndex = trash.findIndex(n => n.id === id);
+    if (trashIndex !== -1) {
+      trash.splice(trashIndex, 1);
+      this.saveTrash(trash);
+      return true;
+    }
+    throw new Error(`Note with ID ${id} not found.`);
+  }
+
+  emptyTrash() {
+    try {
+      if (fs.existsSync(this.trashPath)) {
+        fs.unlinkSync(this.trashPath);
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error(`Failed to empty trash: ${e.message}`);
+      throw e;
+    }
   }
 }
 

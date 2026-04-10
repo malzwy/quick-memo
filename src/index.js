@@ -265,11 +265,20 @@ program
 
 // Backup command
 program
-  .command('backup [path]')
+  .command('backup [backupPath]')
   .description('Backup notes to specified path (or default location)')
-  .action((path) => {
+  .action((backupPathArg) => {
     const store = new Store();
-    const backupPath = path || path.join(store.dataPath + '.backup-' + Date.now());
+    let backupPath = backupPathArg;
+    if (!backupPath) {
+      backupPath = store.dataPath + '.backup-' + Date.now();
+    } else {
+      // Ensure directory exists for custom backup path
+      const backupDir = path.dirname(backupPath);
+      if (!fs.existsSync(backupDir)) {
+        fs.mkdirSync(backupDir, { recursive: true });
+      }
+    }
     try {
       const notes = store.getNotes();
       fs.writeFileSync(backupPath, JSON.stringify(notes, null, 2));
@@ -355,7 +364,7 @@ program
 program
   .command('export-csv [outputPath]')
   .description('Export notes to CSV file')
-  .option('--header', 'Include CSV header row (default: true)')
+  .option('--no-header', 'Skip CSV header row')
   .action((outputPath, options) => {
     const store = new Store();
     const notes = store.getNotes();
@@ -378,7 +387,7 @@ program
     
     try {
       let csv = '';
-      if (options.header !== false) { // default true
+      if (options.header) {
         csv += 'ID,Content,Tags,Created,Updated\n';
       }
       notes.forEach(note => {
@@ -394,6 +403,143 @@ program
     } catch (err) {
       error(`CSV export failed: ${err.message}`);
       process.exit(1);
+    }
+  });
+
+// Trash commands
+program
+  .command('trash <id>')
+  .description('Move note to trash (soft delete)')
+  .action((id) => {
+    const store = new Store();
+    const trashed = store.trashNote(id);
+    success(`Moved to trash: ${trashed.content}`);
+    info(`Trashed at: ${new Date(trashed.trashedAt).toLocaleString()}`);
+  });
+
+program
+  .command('trash-restore <id>')
+  .description('Restore note from trash')
+  .action((id) => {
+    const store = new Store();
+    const restored = store.restoreNote(id);
+    success(`Restored: ${restored.content}`);
+    info(`Restored at: ${new Date(restored.createdAt).toLocaleString()}`);
+  });
+
+program
+  .command('trash-list')
+  .description('List all trashed notes')
+  .option('-d, --detailed', 'Show full details including timestamps')
+  .option('-j, --json', 'Output in JSON format')
+  .action((options) => {
+    const store = new Store();
+    const trash = store.getTrashNotes();
+    
+    if (options.json) {
+      console.log(JSON.stringify(trash, null, 2));
+      return;
+    }
+    
+    if (trash.length === 0) {
+      info('Trash is empty');
+      return;
+    }
+    
+    if (options.detailed) {
+      trash.forEach(note => {
+        const date = new Date(note.trashedAt).toLocaleString();
+        console.log(`[${chalk.cyan(note.id)}] ${note.content}`);
+        console.log(`  ${chalk.gray('Trashed:')} ${date}`);
+        if (note.tags && note.tags.length > 0) {
+          console.log(`  ${chalk.gray('Tags:')} ${note.tags.join(', ')}`);
+        }
+        console.log();
+      });
+    } else {
+      trash.forEach(note => {
+        const date = new Date(note.trashedAt).toLocaleString();
+        console.log(`[${chalk.cyan(note.id)}] ${note.content} ${chalk.gray(`(${date})`)}`);
+      });
+    }
+    
+    info(`Total: ${trash.length} note(s) in trash`);
+  });
+
+program
+  .command('trash-empty')
+  .description('Permanently delete all trashed notes')
+  .option('-f, --force', 'Skip confirmation prompt')
+  .action((options) => {
+    const store = new Store();
+    const trash = store.getTrashNotes();
+    
+    if (trash.length === 0) {
+      info('Trash is already empty');
+      return;
+    }
+    
+    if (!options.force) {
+      console.log(`About to permanently delete ${trash.length} note(s) from trash:`);
+      console.log();
+      trash.forEach(note => {
+        console.log(`- ${note.content}`);
+      });
+      const readline = require('readline');
+      const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+      const question = chalk.red('Are you sure? This cannot be undone. (y/N): ');
+      rl.question(question, (answer) => {
+        rl.close();
+        if (!answer || answer.toLowerCase() !== 'y') {
+          info('Empty trash cancelled');
+          return;
+        }
+        performEmptyTrash();
+      });
+    } else {
+      performEmptyTrash();
+    }
+    
+    function performEmptyTrash() {
+      store.emptyTrash();
+      success(`Emptyed trash: ${trash.length} note(s) permanently deleted`);
+    }
+  });
+
+program
+  .command('purge <id>')
+  .description('Permanently delete a single note from trash')
+  .option('-f, --force', 'Skip confirmation prompt')
+  .action((id, options) => {
+    const store = new Store();
+    const trash = store.getTrashNotes();
+    const index = trash.findIndex(n => n.id === id);
+    if (index === -1) {
+      error(`Note with ID ${id} not found in trash.`);
+      process.exit(1);
+    }
+    const toDelete = trash[index];
+
+    if (!options.force) {
+      console.log(`About to permanently delete: ${chalk.yellow(toDelete.content)}`);
+      const readline = require('readline');
+      const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+      const question = chalk.red('Are you sure? This cannot be undone. (y/N): ');
+      rl.question(question, (answer) => {
+        rl.close();
+        if (!answer || answer.toLowerCase() !== 'y') {
+          info('Purge cancelled');
+          return;
+        }
+        performPurge();
+      });
+    } else {
+      performPurge();
+    }
+
+    function performPurge() {
+      store.permanentlyDelete(id);
+      success(`Purged note: ${toDelete.content}`);
     }
   });
 
