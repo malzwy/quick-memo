@@ -4,6 +4,7 @@ const { program } = require('commander');
 const pkg = require('../package');
 const Store = require('./lib/store');
 const { generateId } = require('./lib/utils');
+const { loadConfig, getCommandConfig } = require('./lib/config');
 const chalk = require('chalk');
 const fs = require('fs');
 const path = require('path');
@@ -56,17 +57,21 @@ program
   .description('List all notes, optionally filtered by tag')
   .option('-d, --detailed', 'Show full details including timestamps')
   .option('-j, --json', 'Output in JSON format')
-  .option('-s, --sort <field>', 'Sort by: created (default), updated, or content', 'created')
+  .option('-s, --sort <field>', 'Sort by: created (default), updated, or content', null)
   .option('--asc', 'Sort ascending (default is descending for date fields)')
   .action((tag, options) => {
     const store = new Store();
+    // Load and merge config
+    const config = loadConfig();
+    const listConfig = getCommandConfig(config, 'list', options);
+
     let notes = store.getNotes();
     const filtered = tag ? notes.filter(n => n.tags.includes(tag)) : notes;
     
-    // Sort notes (apply before any output)
+    // Sort notes using effective config
     filtered.sort((a, b) => {
       let valA, valB;
-      switch (options.sort) {
+      switch (listConfig.sortBy) {
         case 'content':
           valA = a.content.toLowerCase();
           valB = b.content.toLowerCase();
@@ -81,12 +86,12 @@ program
           valB = b.createdAt;
           break;
       }
-      if (valA < valB) return options.asc ? -1 : 1;
-      if (valA > valB) return options.asc ? 1 : -1;
+      if (valA < valB) return listConfig.sortAsc ? -1 : 1;
+      if (valA > valB) return listConfig.sortAsc ? 1 : -1;
       return 0;
     });
     
-    if (options.json) {
+    if (listConfig.json) {
       console.log(JSON.stringify(filtered, null, 2));
       return;
     }
@@ -97,7 +102,7 @@ program
     }
     
     filtered.forEach(note => {
-      if (options.detailed) {
+      if (listConfig.detailed) {
         const date = new Date(note.createdAt).toLocaleString();
         const updated = note.updatedAt ? `\n  Updated: ${new Date(note.updatedAt).toLocaleString()}` : '';
         console.log(`[${chalk.cyan(note.id)}] ${note.content}`);
@@ -141,6 +146,10 @@ program
   .option('-f, --force', 'Skip confirmation prompt')
   .action((id, options) => {
     const store = new Store();
+    // Load config for confirmation settings
+    const config = loadConfig();
+    const deleteConfig = getCommandConfig(config, 'delete', options);
+
     const notes = store.getNotes();
     const index = notes.findIndex(n => n.id === id);
     if (index === -1) {
@@ -149,7 +158,9 @@ program
     }
     const deleted = notes[index];
     
-    if (!options.force) {
+    // Determine if confirmation is needed
+    const skipConfirm = options.force || !deleteConfig.confirm;
+    if (!skipConfirm) {
       console.log(`About to delete: ${chalk.yellow(deleted.content)}`);
       console.log(`${chalk.gray('Tags:')} ${deleted.tags.join(', ') || 'none'}`);
       const readline = require('readline');
@@ -472,6 +483,10 @@ program
   .option('-f, --force', 'Skip confirmation prompt')
   .action((options) => {
     const store = new Store();
+    // Load config for confirmation settings
+    const config = loadConfig();
+    const confirmConfig = getCommandConfig(config, 'trash-empty', options);
+
     const trash = store.getTrashNotes();
     
     if (trash.length === 0) {
@@ -479,7 +494,8 @@ program
       return;
     }
     
-    if (!options.force) {
+    const skipConfirm = options.force || !confirmConfig.confirm;
+    if (!skipConfirm) {
       console.log(`About to permanently delete ${trash.length} note(s) from trash:`);
       console.log();
       trash.forEach(note => {
@@ -512,6 +528,10 @@ program
   .option('-f, --force', 'Skip confirmation prompt')
   .action((id, options) => {
     const store = new Store();
+    // Load config for confirmation settings
+    const config = loadConfig();
+    const confirmConfig = getCommandConfig(config, 'purge', options);
+
     const trash = store.getTrashNotes();
     const index = trash.findIndex(n => n.id === id);
     if (index === -1) {
@@ -520,7 +540,8 @@ program
     }
     const toDelete = trash[index];
 
-    if (!options.force) {
+    const skipConfirm = options.force || !confirmConfig.confirm;
+    if (!skipConfirm) {
       console.log(`About to permanently delete: ${chalk.yellow(toDelete.content)}`);
       const readline = require('readline');
       const rl = readline.createInterface({ input: process.stdin, output: process.stdout });

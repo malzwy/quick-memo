@@ -205,6 +205,37 @@ If you want to use a custom location, set the `QUICK_MEMO_PATH` environment vari
 export QUICK_MEMO_PATH="/path/to/notes.json"
 ```
 
+## ⚙️ Configuration
+
+Quick Memo supports a configuration file to set default options. By default, the config file is located at `~/.quick-memo/config.json`. You can override this location by setting the `QUICK_MEMO_CONFIG` environment variable.
+
+### Supported settings
+
+- `list.sortBy`: Default sort field for `memo list`. Options: `created`, `updated`, `content`. Default: `created`.
+- `list.sortAsc`: Default sort order (boolean). `true` for ascending, `false` for descending (dates default to descending). Default: `false`.
+- `list.detailed`: Default to detailed view when listing notes (boolean). Default: `false`.
+- `list.json`: Default output in JSON format (boolean). Default: `false`.
+- `delete.confirmDelete`: Whether to show confirmation prompt before deleting a note. Set to `false` to skip confirmation. Default: `true`.
+- `trash-empty.confirmDelete`: Whether to show confirmation before emptying trash. Default: `true`.
+- `purge.confirmDelete`: Whether to show confirmation before purging a single note. Default: `true`.
+
+Configuration example:
+
+```json
+{
+  "list": {
+    "sortBy": "updated",
+    "sortAsc": true,
+    "detailed": false
+  },
+  "delete": {
+    "confirmDelete": false
+  }
+}
+```
+
+Command-line flags always override configuration file settings.
+
 ### 🔄 File Recovery
 
 If your notes file becomes corrupted, Quick Memo will:
