@@ -408,10 +408,23 @@ if (fs.existsSync(configPathEnv)) {
   fs.unlinkSync(configPathEnv);
 }
 
+// Test 16: Statistics JSON output (new feature)
+console.log('\nTest 16: Statistics JSON output');
+const statsJsonOutput = { total: statsNotes.length, tags: tagsCount };
+const statsJsonString = JSON.stringify(statsJsonOutput, null, 2);
+const parsedStats = JSON.parse(statsJsonString);
+if (parsedStats.total !== statsNotes.length) {
+  throw new Error('JSON total mismatch');
+}
+if (JSON.stringify(parsedStats.tags) !== JSON.stringify(tagsCount)) {
+  throw new Error('JSON tags mismatch');
+}
+console.log('  ✓ Statistics JSON OK');
+
 // Summary
 console.log('\n' + '='.repeat(50));
 console.log('✅ All tests passed!');
 console.log(`Total notes in test store: ${store.getNotes().length}`);
 console.log('Tags present:', Object.keys(tagsCount).join(', ') || 'none');
-console.log(`Test coverage: 15 test categories (added config)`);
+console.log(`Test coverage: 16 test categories (added stats JSON)`);
 console.log('='.repeat(50));

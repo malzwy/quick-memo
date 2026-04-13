@@ -229,7 +229,8 @@ program
 program
   .command('stats')
   .description('Show statistics about your notes')
-  .action(() => {
+  .option('-j, --json', 'Output in JSON format')
+  .action((options) => {
     const store = new Store();
     const notes = store.getNotes();
     const total = notes.length;
@@ -239,6 +240,11 @@ program
         tags[t] = (tags[t] || 0) + 1;
       });
     });
+    if (options.json) {
+      const output = { total, tags };
+      console.log(JSON.stringify(output, null, 2));
+      return;
+    }
     console.log(`\n${chalk.bold('📊 Quick Memo Statistics')}`);
     console.log(`Total notes: ${chalk.cyan(total.toString())}`);
     if (Object.keys(tags).length > 0) {

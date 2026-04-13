@@ -19,10 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Default options for `list` command: `sortBy`, `sortAsc`, `detailed`, `json`
   - Configurable confirmation prompts for `delete`, `trash-empty`, and `purge`
 - All configuration values can be overridden by command-line flags
+- JSON output for `stats` command (`-j` flag) for scripting and automation
 
 ### Improved
-- Expanded test coverage to 15 categories with comprehensive config tests
-- Documentation updated with configuration section
+- Expanded test coverage to 16 categories (including stats JSON output)
+- Documentation updated with configuration section and stats JSON example
 
 ---
 

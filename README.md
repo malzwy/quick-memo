@@ -100,7 +100,7 @@ memo search "presentation"
 memo stats
 ```
 
-Output:
+Output (human-readable):
 ```
 📊 Quick Memo Statistics
 Total notes: 15
@@ -109,6 +109,24 @@ Tag usage:
   work           7
   personal       5
   urgent         3
+```
+
+For scripting/automation, use JSON output:
+
+```bash
+memo stats -j
+```
+
+JSON output:
+```json
+{
+  "total": 15,
+  "tags": {
+    "work": 7,
+    "personal": 5,
+    "urgent": 3
+  }
+}
 ```
 
 ### List all tags
