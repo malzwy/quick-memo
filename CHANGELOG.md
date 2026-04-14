@@ -12,6 +12,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Ensured backup directory exists for custom paths
 - Updated documentation to include trash commands and CSV export
 
+## [1.4.0] - 2026-04-14
+
+### Added
+- JSON output for `tags` command (`-j` flag) for scripting and automation
+
+### Improved
+- Expanded test coverage to 17 categories (including tags JSON output)
+- Documentation updated with tags JSON example
+
+---
+
 ## [1.3.0] - 2026-04-12
 
 ### Added

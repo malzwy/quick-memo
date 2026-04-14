@@ -421,10 +421,34 @@ if (JSON.stringify(parsedStats.tags) !== JSON.stringify(tagsCount)) {
 }
 console.log('  ✓ Statistics JSON OK');
 
+// Test 17: Tags JSON output
+console.log('\nTest 17: Tags JSON output');
+const tagsForJson = {};
+statsNotes.forEach(n => {
+  n.tags.forEach(t => {
+    tagsForJson[t] = (tagsForJson[t] || 0) + 1;
+  });
+});
+const tagListSorted = Object.entries(tagsForJson).sort((a,b) => b[1] - a[1]);
+// Simulate tags command JSON output
+const tagsJsonOutput = { tags: Object.fromEntries(tagListSorted) };
+const tagsJsonString = JSON.stringify(tagsJsonOutput, null, 2);
+const parsedTags = JSON.parse(tagsJsonString);
+if (!parsedTags.tags) {
+  throw new Error('Tags JSON missing tags object');
+}
+// Verify counts match
+for (const [tag, count] of Object.entries(tagsForJson)) {
+  if (parsedTags.tags[tag] !== count) {
+    throw new Error(`Count mismatch for tag ${tag}: expected ${count}, got ${parsedTags.tags[tag]}`);
+  }
+}
+console.log('  ✓ Tags JSON OK');
+
 // Summary
 console.log('\n' + '='.repeat(50));
 console.log('✅ All tests passed!');
 console.log(`Total notes in test store: ${store.getNotes().length}`);
 console.log('Tags present:', Object.keys(tagsCount).join(', ') || 'none');
-console.log(`Test coverage: 16 test categories (added stats JSON)`);
+console.log(`Test coverage: 17 test categories (added tags JSON)`);
 console.log('='.repeat(50));

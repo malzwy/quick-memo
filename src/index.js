@@ -260,7 +260,8 @@ program
 program
   .command('tags')
   .description('List all tags used across notes')
-  .action(() => {
+  .option('-j, --json', 'Output in JSON format')
+  .action((options) => {
     const store = new Store();
     const notes = store.getNotes();
     const tags = {};
@@ -270,6 +271,11 @@ program
       });
     });
     const tagList = Object.entries(tags).sort((a,b) => b[1] - a[1]);
+    if (options.json) {
+      const tagsObj = Object.fromEntries(tagList);
+      console.log(JSON.stringify({ tags: tagsObj }, null, 2));
+      return;
+    }
     if (tagList.length === 0) {
       info('No tags found. Add a note with tags to get started!');
       return;

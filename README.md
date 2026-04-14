@@ -137,6 +137,24 @@ memo tags
 
 Shows all tags used across notes with counts.
 
+For scripting/automation, use JSON output:
+
+```bash
+memo tags -j
+```
+
+JSON output:
+
+```json
+{
+  "tags": {
+    "work": 7,
+    "personal": 5,
+    "urgent": 3
+  }
+}
+```
+
 ### Backup and Restore
 
 ```bash
