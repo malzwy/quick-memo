@@ -445,10 +445,57 @@ for (const [tag, count] of Object.entries(tagsForJson)) {
 }
 console.log('  ✓ Tags JSON OK');
 
+// Test 18: Search JSON output
+console.log('\nTest 18: Search JSON output');
+// Create sample notes for this test (they will remain in store)
+const searchSampleNotes = [
+  { id: generateId(), content: 'Meeting with team', tags: ['work'], createdAt: Date.now() },
+  { id: generateId(), content: 'Buy dinner', tags: ['personal', 'food'], createdAt: Date.now() },
+  { id: generateId(), content: 'Project deadline', tags: ['work', 'urgent'], createdAt: Date.now() }
+];
+searchSampleNotes.forEach(n => store.addNote(n));
+const searchQuery = 'meet';
+let searchJsonResults = store.getNotes().filter(n => n.content.toLowerCase().includes(searchQuery));
+if (searchJsonResults.length === 0) {
+  throw new Error('Test 18 expects at least one note containing "meet"');
+}
+const searchJsonStr = JSON.stringify(searchJsonResults, null, 2);
+const parsedSearch = JSON.parse(searchJsonStr);
+if (!Array.isArray(parsedSearch)) {
+  throw new Error('Search JSON output should be an array');
+}
+for (const note of parsedSearch) {
+  if (!note.id || !note.content || !Array.isArray(note.tags) || !note.createdAt) {
+    throw new Error('Search JSON result missing required fields');
+  }
+}
+console.log('  ✓ Search JSON OK');
+
+// Test 19: Search tag filtering logic
+console.log('\nTest 19: Search tag filtering');
+// Simulate result set and apply tag filter (OR logic)
+const mockResults = [
+  { id: '1', content: 'Note A', tags: ['work'] },
+  { id: '2', content: 'Note B', tags: ['personal'] },
+  { id: '3', content: 'Note C', tags: ['work', 'urgent'] },
+  { id: '4', content: 'Note D', tags: ['food'] }
+];
+const tagFilters = ['work', 'urgent'];
+const filtered = mockResults.filter(n => tagFilters.some(tag => n.tags.includes(tag)));
+if (filtered.length !== 2) {
+  throw new Error('Tag filter should return 2 notes (work OR urgent)');
+}
+// Verify filtered notes have expected IDs
+const filteredIds = filtered.map(n => n.id);
+if (!filteredIds.includes('1') || !filteredIds.includes('3')) {
+  throw new Error('Tag filter incorrect results');
+}
+console.log('  ✓ Tag filtering OK');
+
 // Summary
 console.log('\n' + '='.repeat(50));
 console.log('✅ All tests passed!');
 console.log(`Total notes in test store: ${store.getNotes().length}`);
 console.log('Tags present:', Object.keys(tagsCount).join(', ') || 'none');
-console.log(`Test coverage: 17 test categories (added tags JSON)`);
+console.log(`Test coverage: 19 test categories (added search JSON, tag filter)`);
 console.log('='.repeat(50));

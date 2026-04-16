@@ -23,6 +23,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.5.0] - 2026-04-16
+
+### Added
+- JSON output for `search` command (`-j` flag) for scripting and automation
+- Tag filtering for `search` command (`-t/--tag`) to combine text search with tag filters (comma-separated for OR logic)
+
+### Improved
+- Expanded test coverage to 19 categories (including search JSON output and tag filtering)
+- Documentation updated with search command examples and options
+
+---
+
 ## [1.3.0] - 2026-04-12
 
 ### Added

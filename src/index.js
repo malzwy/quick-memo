@@ -119,7 +119,9 @@ program
 program
   .command('search <query>')
   .description('Search notes by content')
-  .action((query) => {
+  .option('-j, --json', 'Output in JSON format')
+  .option('-t, --tag <tag>', 'Filter by tag (comma-separated for multiple tags)')
+  .action((query, options) => {
     const trimmed = query.trim();
     if (!trimmed) {
       error('Search query cannot be empty');
@@ -127,11 +129,26 @@ program
     }
     const store = new Store();
     const notes = store.getNotes();
-    const results = notes.filter(n => 
+    let results = notes.filter(n => 
       n.content.toLowerCase().includes(trimmed.toLowerCase())
     );
+    // Apply tag filter if provided
+    if (options.tag) {
+      const tagFilters = options.tag.split(',').map(t => t.trim()).filter(t => t);
+      if (tagFilters.length > 0) {
+        results = results.filter(n => tagFilters.some(tag => n.tags.includes(tag)));
+      }
+    }
     if (results.length === 0) {
-      info('No matching notes found.');
+      if (options.json) {
+        console.log('[]');
+      } else {
+        info('No matching notes found.');
+      }
+      return;
+    }
+    if (options.json) {
+      console.log(JSON.stringify(results, null, 2));
       return;
     }
     info(`Found ${results.length} note(s):`);

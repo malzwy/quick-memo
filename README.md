@@ -90,8 +90,39 @@ memo edit abc123 "Buy organic groceries" grocery urgent
 
 ### Search notes
 
+Search notes by content with optional tag filters.
+
 ```bash
+# Basic search
 memo search "presentation"
+
+# Filter by tag (comma-separated for OR logic)
+memo search "presentation" --tag work
+
+# Combine multiple tags and text search
+memo search "important" --tag work,urgent
+
+# JSON output for scripting and automation
+memo search "presentation" -j
+```
+
+For scripting/automation, use `-j` to get machine-readable JSON output:
+
+```bash
+memo search "project" -j
+```
+
+JSON output example:
+
+```json
+[
+  {
+    "id": "abc123",
+    "content": "Project kickoff",
+    "tags": ["work"],
+    "createdAt": 1712345678901
+  }
+]
 ```
 
 ### Show statistics
