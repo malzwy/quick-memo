@@ -6,7 +6,7 @@
 
 - **Add notes** with optional comma-separated tags (validates non-empty content)
 - **List notes** with optional tag filter, sorting, and detailed view
-- **Search notes** by content (case-insensitive)
+- **Search notes** by content with **fuzzy matching** for typos and similar words
 - **Delete notes** by ID with safety confirmation (or `--force` to skip)
 - **Edit notes** by ID (updates content and/or tags)
 - **Statistics** showing total notes and tag frequency
@@ -90,7 +90,7 @@ memo edit abc123 "Buy organic groceries" grocery urgent
 
 ### Search notes
 
-Search notes by content with optional tag filters.
+Search notes by content with optional tag filters and fuzzy matching.
 
 ```bash
 # Basic search
@@ -101,6 +101,12 @@ memo search "presentation" --tag work
 
 # Combine multiple tags and text search
 memo search "important" --tag work,urgent
+
+# Fuzzy search for typos and similar words
+memo search "meeting" --fuzzy
+
+# Adjust fuzzy threshold (0-1, default 0.3)
+memo search "meeting" --fuzzy --threshold 0.5
 
 # JSON output for scripting and automation
 memo search "presentation" -j

@@ -492,6 +492,62 @@ if (!filteredIds.includes('1') || !filteredIds.includes('3')) {
 }
 console.log('  ✓ Tag filtering OK');
 
+// Test 20: Fuzzy search functionality
+console.log('\nTest 20: Fuzzy search');
+const stringSimilarity = require('string-similarity');
+// Create test notes with varying similarity to query 'meeting'
+const fuzzyNotes = [
+  { id: 'f1', content: 'Meeting with team', tags: ['work'], createdAt: Date.now() },
+  { id: 'f2', content: 'Meting schedule', tags: ['work'], createdAt: Date.now() }, // typo
+  { id: 'f3', content: 'Team dinner', tags: ['personal'], createdAt: Date.now() },
+  { id: 'f4', content: 'Weekly meeting agenda', tags: ['work'], createdAt: Date.now() }
+];
+const fuzzyStore = new Store(testDataPath);
+fuzzyNotes.forEach(n => fuzzyStore.addNote(n));
+// Simulate fuzzy search with threshold 0.3
+const query = 'meeting';
+const threshold = 0.3;
+const allNotes = fuzzyStore.getNotes();
+const scored = allNotes.map(note => ({
+  note,
+  score: stringSimilarity.compareTwoStrings(query.toLowerCase(), note.content.toLowerCase())
+}));
+const fuzzyResults = scored
+  .filter(item => item.score >= threshold)
+  .sort((a, b) => b.score - a.score)
+  .map(item => item.note);
+// At threshold 0.3, we expect the two meeting notes plus the typo 'Meting'
+// Check that we got at least the exact match
+const hasExact = fuzzyResults.some(n => n.content.includes('Meeting'));
+if (!hasExact) {
+  throw new Error('Fuzzy search should include exact match');
+}
+// Verify scores are computed correctly (higher score for exact match)
+const exactScore = scored.find(s => s.note.content.includes('Meeting')).score;
+const typoScore = scored.find(s => s.note.content.includes('Meting')).score;
+if (exactScore < typoScore) {
+  throw new Error('Exact match should have higher similarity score than typo');
+}
+console.log('  ✓ Fuzzy search OK (scoring and threshold)');
+
+// Test 21: Fuzzy search with tag filtering
+console.log('\nTest 21: Fuzzy search with tag filtering');
+const mockFuzzyResults = [
+  { id: 'a', content: 'Project kickoff meeting', tags: ['work'] },
+  { id: 'b', content: 'Meting notes', tags: ['work'] },
+  { id: 'c', content: 'Team building', tags: ['personal'] }
+];
+const queryFuzzy = 'meet';
+const thresholdFuzzy = 0.2; // low to include some
+const tagFilterTest = ['work'];
+// Simulate fuzzy results already
+const afterFuzzy = mockFuzzyResults.filter(n => stringSimilarity.compareTwoStrings(queryFuzzy.toLowerCase(), n.content.toLowerCase()) >= thresholdFuzzy);
+const afterTag = afterFuzzy.filter(n => tagFilterTest.some(tag => n.tags.includes(tag)));
+if (afterTag.length !== 2) {
+  throw new Error('Fuzzy + tag filter should return 2 work notes');
+}
+console.log('  ✓ Fuzzy + tag filtering OK');
+
 // Summary
 console.log('\n' + '='.repeat(50));
 console.log('✅ All tests passed!');

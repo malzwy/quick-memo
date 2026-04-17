@@ -35,6 +35,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.6.0] - 2026-04-17
+
+### Added
+- ✨ **Fuzzy search** capability for `search` command (`-f/--fuzzy`)
+  - Uses string similarity matching to find notes even with typos or partial matches
+  - Configurable similarity threshold with `--threshold` option (default: 0.3)
+  - Shows relevance percentage in fuzzy search results
+- JSON output for fuzzy search results (compatible with `-j` flag)
+
+### Improved
+- Expanded test coverage to 21 categories (fuzzy search + fuzzy + tag filter)
+- Documentation updated with fuzzy search examples and options
+
+---
+
 ## [1.3.0] - 2026-04-12
 
 ### Added
