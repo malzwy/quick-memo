@@ -548,10 +548,59 @@ if (afterTag.length !== 2) {
 }
 console.log('  ✓ Fuzzy + tag filtering OK');
 
+// Test 22: untagNote - successful removal
+console.log('\nTest 22: Untag (Store method)');
+const notesForUntag = store.getNotes();
+const noteWithTags = notesForUntag.find(n => n.tags.length > 0);
+if (!noteWithTags) {
+  throw new Error('Require a note with tags for untag test');
+}
+const noteId = noteWithTags.id;
+const tagToRemove = noteWithTags.tags[0];
+const untagResult = store.untagNote(noteId, tagToRemove);
+if (!untagResult) {
+  throw new Error('untagNote should return true when tag exists');
+}
+// Verify tag removed
+const afterNotes = store.getNotes();
+const ungotNote = afterNotes.find(n => n.id === noteId);
+if (ungotNote.tags.includes(tagToRemove)) {
+  throw new Error('Tag should have been removed');
+}
+if (ungotNote.tags.length !== noteWithTags.tags.length - 1) {
+  throw new Error('Tag count should decrease by one');
+}
+console.log('  ✓ Untag success');
+
+// Test 23: untagNote - tag not present
+console.log('\nTest 23: Untag non-existent tag');
+const result2 = store.untagNote(noteId, 'nonexistenttag');
+if (result2 !== false) {
+  throw new Error('untagNote should return false for non-existent tag');
+}
+console.log('  ✓ Untag returns false for missing tag');
+
+// Test 24: untagNote - note not found
+console.log('\nTest 24: Untag non-existent note');
+let threw = false;
+try {
+  store.untagNote('nonexistentid', 'sometag');
+} catch (err) {
+  if (err.message.includes('not found')) {
+    threw = true;
+  } else {
+    throw err;
+  }
+}
+if (!threw) {
+  throw new Error('Should throw when note not found');
+}
+console.log('  ✓ Untag throws for missing note');
+
 // Summary
 console.log('\n' + '='.repeat(50));
 console.log('✅ All tests passed!');
 console.log(`Total notes in test store: ${store.getNotes().length}`);
 console.log('Tags present:', Object.keys(tagsCount).join(', ') || 'none');
-console.log(`Test coverage: 19 test categories (added search JSON, tag filter)`);
+console.log(`Test coverage: 24 test categories (added untag functionality and Store error handling)`);
 console.log('='.repeat(50));

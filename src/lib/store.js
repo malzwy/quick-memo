@@ -163,6 +163,31 @@ class Store {
       throw e;
     }
   }
+
+  // Remove a specific tag from a note
+  // Returns true if tag was removed, false if tag not present
+  // Throws if note not found
+  untagNote(noteId, tag) {
+    const notes = this.loadNotes();
+    const noteIndex = notes.findIndex(n => n.id === noteId);
+    if (noteIndex === -1) {
+      throw new Error(`Note with ID ${noteId} not found.`);
+    }
+    const note = notes[noteIndex];
+    const tagIndex = note.tags.indexOf(tag);
+    if (tagIndex === -1) {
+      return false; // tag not present
+    }
+    const newTags = [...note.tags];
+    newTags.splice(tagIndex, 1);
+    notes[noteIndex] = {
+      ...note,
+      tags: newTags,
+      updatedAt: Date.now()
+    };
+    this.saveNotes(notes);
+    return true;
+  }
 }
 
 module.exports = Store;

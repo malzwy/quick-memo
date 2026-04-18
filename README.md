@@ -88,6 +88,17 @@ memo edit abc123 "Buy organic groceries"
 memo edit abc123 "Buy organic groceries" grocery urgent
 ```
 
+### Remove a specific tag
+
+Use `untag` to remove a single tag from a note while preserving other tags.
+
+```bash
+# Remove a tag from a note
+memo untag abc123 urgent
+```
+
+If the tag does not exist on the note, an error is displayed.
+
 ### Search notes
 
 Search notes by content with optional tag filters and fuzzy matching.
