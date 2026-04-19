@@ -5,6 +5,21 @@ All notable changes to Quick Memo will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] - 2026-04-19
+
+### Added
+- ✨ `import <filePath>` command for bulk import from JSON or CSV files
+  - Supports both JSON (array of note objects) and CSV (same format as export-csv)
+  - Smart duplicate detection by content (use `--force` to bypass)
+  - Skips empty/invalid notes with warnings
+  - Preserves tags from source data
+
+### Improved
+- Import functionality complements existing export commands for full data portability
+- Test coverage expanded to include import scenarios
+
+---
+
 ## [1.7.0] - 2026-04-18
 
 ### Added

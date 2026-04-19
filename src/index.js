@@ -370,6 +370,146 @@ program
     });
   });
 
+// Import command - bulk import from JSON or CSV
+program
+  .command('import <filePath>')
+  .description('Import notes from JSON or CSV file')
+  .option('-f, --force', 'Skip confirmation for duplicate handling')
+  .action((filePath, options) => {
+    const store = new Store();
+    if (!fs.existsSync(filePath)) {
+      error(`File not found: ${filePath}`);
+      process.exit(1);
+    }
+    try {
+      const content = fs.readFileSync(filePath, 'utf8');
+      let importedNotes = [];
+      let skipped = 0;
+      let duplicates = 0;
+      
+      // Detect format by extension
+      const ext = path.extname(filePath).toLowerCase();
+      if (ext === '.json') {
+        const data = JSON.parse(content);
+        if (!Array.isArray(data)) {
+          error('JSON file must contain an array of notes');
+          process.exit(1);
+        }
+        // Transform to our format
+        const existingNotes = store.getNotes();
+        const existingContents = new Set(existingNotes.map(n => n.content.toLowerCase()));
+        
+        for (const item of data) {
+          if (!item.content || !item.content.trim()) {
+            skipped++;
+            continue; // skip empty notes
+          }
+          const trimmed = item.content.trim();
+          
+          // Check for duplicates (by content) unless force
+          if (!options.force && existingContents.has(trimmed.toLowerCase())) {
+            duplicates++;
+            continue;
+          }
+          
+          const note = {
+            id: generateId(),
+            content: trimmed,
+            tags: Array.isArray(item.tags) ? item.tags : (item.tags ? [item.tags] : []),
+            createdAt: item.createdAt || Date.now()
+          };
+          importedNotes.push(note);
+          existingContents.add(trimmed.toLowerCase());
+        }
+      } else if (ext === '.csv') {
+        // Parse CSV (same format as export-csv)
+        const lines = content.trim().split('\n');
+        if (lines.length < 2) {
+          error('CSV file must have header and at least one data row');
+          process.exit(1);
+        }
+        const header = lines[0].split(',');
+        if (!header.includes('Content') || !header.includes('Tags')) {
+          error('CSV file must have Content and Tags columns');
+          process.exit(1);
+        }
+        
+        const existingNotes = store.getNotes();
+        const existingContents = new Set(existingNotes.map(n => n.content.toLowerCase()));
+        
+        for (let i = 1; i < lines.length; i++) {
+          const row = lines[i];
+          // Simple CSV parsing for quoted fields
+          const parsed = [];
+          let inQuotes = false;
+          let current = '';
+          for (let j = 0; j < row.length; j++) {
+            const char = row[j];
+            if (char === '"') {
+              inQuotes = !inQuotes;
+            } else if (char === ',' && !inQuotes) {
+              parsed.push(current);
+              current = '';
+            } else {
+              current += char;
+            }
+          }
+          parsed.push(current);
+          
+          if (parsed.length < 2) {
+            skipped++;
+            continue;
+          }
+          const content = parsed[1].trim();
+          if (!content) {
+            skipped++;
+            continue;
+          }
+          // Duplicate check
+          if (!options.force && existingContents.has(content.toLowerCase())) {
+            duplicates++;
+            continue;
+          }
+          // Parse tags (semicolon-separated)
+          const tagsStr = parsed[2] || '';
+          const tags = tagsStr ? tagsStr.split(';').map(t => t.trim()).filter(t => t) : [];
+          
+          const note = {
+            id: generateId(),
+            content: content,
+            tags: tags,
+            createdAt: Date.now()
+          };
+          importedNotes.push(note);
+          existingContents.add(content.toLowerCase());
+        }
+      } else {
+        error('Unsupported file format. Use .json or .csv files');
+        process.exit(1);
+      }
+      
+      if (importedNotes.length === 0) {
+        info('No new notes to import');
+        if (skipped > 0) info(`${skipped} notes skipped (empty content)`);
+        if (duplicates > 0) info(`${duplicates} duplicates skipped (use --force to override)`);
+        return;
+      }
+      
+      // Add notes
+      for (const note of importedNotes) {
+        store.addNote(note);
+      }
+      
+      success(`Imported ${importedNotes.length} note(s)`);
+      if (skipped > 0) warn(`${skipped} notes skipped (empty content)`);
+      if (duplicates > 0) warn(`${duplicates} duplicates skipped (use --force to import anyway)`);
+      
+    } catch (err) {
+      error(`Import failed: ${err.message}`);
+      process.exit(1);
+    }
+  });
+
 // Backup command
 program
   .command('backup [backupPath]')

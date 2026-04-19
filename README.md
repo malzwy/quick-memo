@@ -267,6 +267,36 @@ memo export-csv ~/exports/my-notes.csv --no-header
 
 Exports notes to CSV format with fields: ID, Content, Tags (semicolon-separated), Created (ISO 8601), Updated (ISO 8601). Useful for spreadsheet import and data analysis.
 
+### Import Notes
+
+Bulk import notes from JSON or CSV files (complements the export commands).
+
+```bash
+# Import from JSON file (array of {content, tags, createdAt?})
+memo import notes.json
+
+# Import from CSV (same format as export-csv)
+memo import notes.csv
+
+# Force import even if duplicates exist (by content)
+memo import notes.json --force
+```
+
+**JSON Format**:
+```json
+[
+  { "content": "Buy groceries", "tags": ["grocery", "urgent"] },
+  { "content": "Call mom", "tags": ["personal"], "createdAt": 1712345678901 }
+]
+```
+
+**Import Behavior**:
+- Generates new IDs for imported notes
+- Skips empty notes automatically
+- Detects duplicates by content (case-insensitive) unless `--force` is used
+- Preserves tags from source data
+- For CSV, uses semicolon-separated tags
+
 ## 🗃️ Storage
 
 Notes are stored in `~/.quick-memo/notes.json`. You can back up this file to migrate your notes. The format:
@@ -350,24 +380,30 @@ Contributions welcome! Fork the repo and open a PR.
 
 ## 🔮 Roadmap
 
-Completed in v1.1.0:
+Core features (v1.1.0):
 - ✅ Colored terminal output
 - ✅ Delete confirmation
-- ✅ Sorting options (by created, updated, content)
-- ✅ Backup and restore commands
+- ✅ Sorting options
+- ✅ Backup and restore
 - ✅ Export to Markdown
-- ✅ Tag listing command
+- ✅ Tag listing
 - ✅ Corrupted file auto-backup
 - ✅ Input validation
 - ✅ Improved error handling
 
+Enhancements:
+- ✅ CSV export (v1.2.0)
+- ✅ Configuration file (v1.3.0)
+- ✅ JSON output for tags, stats, search (v1.4.0-1.5.0)
+- ✅ Tag filtering in search (v1.5.0)
+- ✅ Fuzzy search (v1.6.0)
+- ✅ Granular tag removal - untag command (v1.7.0)
+- ✅ Bulk import from JSON/CSV (v1.8.0)
+
 Future ideas:
 - Tag autocomplete
-- Fuzzy search
 - Due dates and reminders
-- Configuration file for defaults
 - Note categories/pinned notes
-
 ---
 
 Made with ❤️ by the OpenClaw team.
