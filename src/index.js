@@ -422,13 +422,49 @@ program
           existingContents.add(trimmed.toLowerCase());
         }
       } else if (ext === '.csv') {
-        // Parse CSV (same format as export-csv)
-        const lines = content.trim().split('\n');
-        if (lines.length < 2) {
+        // Parse CSV with full RFC 4180 support (quoted fields, newlines, commas)
+        function parseCsv(text) {
+          // Normalize line endings
+          text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+          const rows = [];
+          let row = [];
+          let field = '';
+          let inQuotes = false;
+          for (let i = 0; i < text.length; i++) {
+            const char = text[i];
+            if (char === '"') {
+              if (inQuotes && text[i + 1] === '"') {
+                field += '"';
+                i++; // skip next quote
+              } else {
+                inQuotes = !inQuotes;
+              }
+            } else if (char === '\n' && !inQuotes) {
+              row.push(field);
+              rows.push(row);
+              row = [];
+              field = '';
+            } else if (char === ',' && !inQuotes) {
+              row.push(field);
+              field = '';
+            } else {
+              field += char;
+            }
+          }
+          // Push last field/row (handles file without trailing newline)
+          if (field || row.length > 0) {
+            row.push(field);
+            rows.push(row);
+          }
+          return rows;
+        }
+        
+        const parsedCsv = parseCsv(content);
+        if (parsedCsv.length < 2) {
           error('CSV file must have header and at least one data row');
           process.exit(1);
         }
-        const header = lines[0].split(',');
+        const header = parsedCsv[0];
         if (!header.includes('Content') || !header.includes('Tags')) {
           error('CSV file must have Content and Tags columns');
           process.exit(1);
@@ -437,30 +473,14 @@ program
         const existingNotes = store.getNotes();
         const existingContents = new Set(existingNotes.map(n => n.content.toLowerCase()));
         
-        for (let i = 1; i < lines.length; i++) {
-          const row = lines[i];
-          // Simple CSV parsing for quoted fields
-          const parsed = [];
-          let inQuotes = false;
-          let current = '';
-          for (let j = 0; j < row.length; j++) {
-            const char = row[j];
-            if (char === '"') {
-              inQuotes = !inQuotes;
-            } else if (char === ',' && !inQuotes) {
-              parsed.push(current);
-              current = '';
-            } else {
-              current += char;
-            }
-          }
-          parsed.push(current);
-          
-          if (parsed.length < 2) {
+        // Process data rows (skip header)
+        for (let i = 1; i < parsedCsv.length; i++) {
+          const row = parsedCsv[i];
+          if (row.length < 3) { // need at least ID, Content, Tags
             skipped++;
             continue;
           }
-          const content = parsed[1].trim();
+          const content = (row[1] || '').trim();
           if (!content) {
             skipped++;
             continue;
@@ -471,7 +491,7 @@ program
             continue;
           }
           // Parse tags (semicolon-separated)
-          const tagsStr = parsed[2] || '';
+          const tagsStr = (row[2] || '').trim();
           const tags = tagsStr ? tagsStr.split(';').map(t => t.trim()).filter(t => t) : [];
           
           const note = {
@@ -634,7 +654,7 @@ program
     
     try {
       let csv = '';
-      if (options.header) {
+      if (options.header !== false) { // --no-header sets header=false to skip
         csv += 'ID,Content,Tags,Created,Updated\n';
       }
       notes.forEach(note => {

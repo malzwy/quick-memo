@@ -5,6 +5,8 @@ class Store {
   constructor(customPath) {
     if (customPath) {
       this.dataPath = customPath;
+    } else if (process.env.QUICK_MEMO_PATH) {
+      this.dataPath = process.env.QUICK_MEMO_PATH;
     } else {
       this.dataPath = path.join(require('os').homedir(), '.quick-memo', 'notes.json');
     }

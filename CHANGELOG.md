@@ -5,6 +5,14 @@ All notable changes to Quick Memo will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.1] - 2026-04-20
+
+### Fixed
+- Fixed CSV export `--no-header` flag: header is now included by default and omitted when the flag is provided.
+- Fixed CSV import to correctly parse fields containing newlines, commas, and quoted values (RFC 4180 compliance). Multiline note content now imports correctly.
+
+---
+
 ## [1.8.0] - 2026-04-19
 
 ### Added

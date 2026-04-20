@@ -1,5 +1,6 @@
 const Store = require('../src/lib/store');
 const { generateId } = require('../src/lib/utils');
+const { spawnSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
