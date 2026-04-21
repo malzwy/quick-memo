@@ -295,7 +295,11 @@ memo import notes.json --force
 - Skips empty notes automatically
 - Detects duplicates by content (case-insensitive) unless `--force` is used
 - Preserves tags from source data
-- For CSV, uses semicolon-separated tags
+- **CSV Import**: Fully RFC 4180-compliant
+  - Supports multiline content within quoted fields
+  - Handles commas inside quoted fields
+  - Uses semicolon-separated tags as exported by `export-csv`
+- **JSON Import**: Expects array of note objects with `content` (required), `tags` (optional array), and `createdAt` (optional timestamp)
 
 ## 🗃️ Storage
 
