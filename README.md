@@ -203,6 +203,34 @@ JSON output:
 }
 ```
 
+### Configuration commands
+
+Quick Memo allows managing your configuration via CLI without manually editing the config file.
+
+```bash
+# Show current configuration
+memo config show
+
+# Set a configuration value using dot notation
+memo config set list.sortBy updated
+memo config set list.detailed true
+memo config set delete.confirmDelete false
+
+# Unset a configuration key
+memo config unset list.detailed
+```
+
+Supported configuration keys:
+- `list.sortBy`: `created`, `updated`, or `content`
+- `list.sortAsc`: boolean
+- `list.detailed`: boolean
+- `list.json`: boolean
+- `delete.confirmDelete`: boolean
+- `trash-empty.confirmDelete`: boolean
+- `purge.confirmDelete`: boolean
+
+Boolean values are parsed from JSON `true`/`false` or plain strings.
+
 ### Backup and Restore
 
 ```bash

@@ -23,6 +23,12 @@ function loadConfig() {
   }
 }
 
+function saveConfig(config) {
+  const configPath = getConfigPath();
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
+}
+
 function getCommandConfig(config, command, options = {}) {
   const cmdConfig = config[command] || {};
 
@@ -88,5 +94,6 @@ function getCommandConfig(config, command, options = {}) {
 module.exports = {
   getConfigPath,
   loadConfig,
+  saveConfig,
   getCommandConfig
 };

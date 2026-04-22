@@ -5,6 +5,22 @@ All notable changes to Quick Memo will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.0] - 2026-04-22
+
+### Added
+- ✨ `config` command group for managing settings without editing files
+  - `memo config show` displays current configuration
+  - `memo config set <key> <value>` sets nested keys using dot notation (e.g., `list.sortBy`)
+  - `memo config unset <key>` removes configuration keys
+  - Supports boolean, number, and string values
+  - Auto-creates config file and parent directories
+
+### Improved
+- Enhanced user experience: configuration now fully manageable via CLI
+- Documentation updated with config usage examples
+
+---
+
 ## [1.8.1] - 2026-04-20
 
 ### Fixed

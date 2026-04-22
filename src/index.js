@@ -27,7 +27,8 @@ const commandModules = [
   './commands/trash-restore',
   './commands/trash-list',
   './commands/trash-empty',
-  './commands/purge'
+  './commands/purge',
+  './commands/config'
 ];
 
 for (const cmd of commandModules) {
