@@ -63,6 +63,29 @@ class Store {
     return note;
   }
 
+  /**
+   * Add multiple notes in a single batch operation.
+   * This is more efficient than calling addNote repeatedly as it loads and saves the notes file only once.
+   * @param {Array} notes - Array of note objects to add
+   * @returns {Array} The added notes
+   */
+  addNotes(notes) {
+    if (!Array.isArray(notes)) {
+      throw new Error('addNotes expects an array');
+    }
+    const existing = this.loadNotes();
+    const added = [];
+    for (const note of notes) {
+      if (!note.content || !note.content.trim()) {
+        continue; // skip empty notes
+      }
+      added.push(note);
+    }
+    const newNotes = existing.concat(added);
+    this.saveNotes(newNotes);
+    return added;
+  }
+
   getNotes() {
     return this.loadNotes();
   }
@@ -167,7 +190,7 @@ class Store {
   }
 
   // Remove a specific tag from a note
-  // Returns true if tag was removed, false if tag not present
+  // Returns the updated note if tag was removed, false if tag not present
   // Throws if note not found
   untagNote(noteId, tag) {
     const notes = this.loadNotes();
@@ -188,7 +211,7 @@ class Store {
       updatedAt: Date.now()
     };
     this.saveNotes(notes);
-    return true;
+    return notes[noteIndex];
   }
 }
 

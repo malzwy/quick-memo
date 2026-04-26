@@ -7,6 +7,7 @@
 - **Add notes** with optional comma-separated tags (validates non-empty content)
 - **List notes** with optional tag filter, sorting, and detailed view
 - **Search notes** by content with **fuzzy matching** for typos and similar words
+- **Search index** – fast in-memory index for large collections (auto-maintained, with `rebuild-index` command)
 - **Delete notes** by ID with safety confirmation (or `--force` to skip)
 - **Edit notes** by ID (updates content and/or tags)
 - **Statistics** showing total notes and tag frequency
@@ -202,6 +203,16 @@ JSON output:
   }
 }
 ```
+
+### Rebuild Index
+
+If you suspect the search index is out of date or corrupted, you can rebuild it manually:
+
+```bash
+memo rebuild-index
+```
+
+This will recreate the index from your current notes. The index is normally kept up-to-date automatically, but this command can be useful after manual edits of the notes file or if performance degrades.
 
 ### Configuration commands
 
@@ -431,6 +442,8 @@ Enhancements:
 - ✅ Fuzzy search (v1.6.0)
 - ✅ Granular tag removal - untag command (v1.7.0)
 - ✅ Bulk import from JSON/CSV (v1.8.0)
+- ✅ Configuration management via CLI (`memo config`) (v1.10.0)
+- ✅ IndexManager for consistent index updates and batch import performance (v1.11.0)
 
 Future ideas:
 - Tag autocomplete

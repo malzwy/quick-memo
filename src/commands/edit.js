@@ -1,5 +1,6 @@
 const Store = require('../lib/store');
 const { success, error, info } = require('../lib/helpers');
+const IndexManager = require('../lib/indexManager');
 
 module.exports = function registerEditCommand(program) {
   program
@@ -19,6 +20,8 @@ module.exports = function registerEditCommand(program) {
         error(`Note with ID ${id} not found.`);
         process.exit(1);
       }
+      const indexMgr = new IndexManager(store);
+      indexMgr.load();
       const updated = {
         ...notes[noteIndex],
         content: trimmed,
@@ -28,6 +31,12 @@ module.exports = function registerEditCommand(program) {
       notes[noteIndex] = updated;
       try {
         store.saveNotes(notes);
+        // Update index
+        try {
+          indexMgr.afterEdit(updated);
+        } catch (idxErr) {
+          console.warn('Failed to update search index:', idxErr.message);
+        }
         success(`Updated note ${id}: ${updated.content}`);
         if (newTags && newTags.length > 0) {
           info(`Tags updated to: ${newTags.join(', ')}`);

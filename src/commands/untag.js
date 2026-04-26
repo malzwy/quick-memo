@@ -1,5 +1,6 @@
 const Store = require('../lib/store');
 const { success, error } = require('../lib/helpers');
+const IndexManager = require('../lib/indexManager');
 
 module.exports = function registerUntagCommand(program) {
   program
@@ -12,14 +13,22 @@ module.exports = function registerUntagCommand(program) {
         process.exit(1);
       }
       const store = new Store();
+      const indexMgr = new IndexManager(store);
+      indexMgr.load();
+
       try {
         const result = store.untagNote(id, trimmedTag);
-        if (result) {
-          success(`Removed tag '${trimmedTag}' from note ${id}`);
-        } else {
+        if (result === false) {
           error(`Tag '${trimmedTag}' not found on note ${id}.`);
           process.exit(1);
         }
+        const updatedNote = result;
+        try {
+          indexMgr.afterEdit(updatedNote);
+        } catch (idxErr) {
+          console.warn('Failed to update search index:', idxErr.message);
+        }
+        success(`Removed tag '${trimmedTag}' from note ${id}`);
       } catch (err) {
         error(`Failed to untag: ${err.message}`);
         process.exit(1);

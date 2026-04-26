@@ -1,6 +1,7 @@
 const Store = require('../lib/store');
 const { success, error } = require('../lib/helpers');
 const fs = require('fs');
+const IndexManager = require('../lib/indexManager');
 
 module.exports = function registerRestoreCommand(program) {
   program
@@ -20,6 +21,12 @@ module.exports = function registerRestoreCommand(program) {
         }
         const store = new Store();
         store.saveNotes(notes);
+        try {
+          const indexMgr = new IndexManager(store);
+          indexMgr.rebuild();
+        } catch (idxErr) {
+          console.warn('Failed to rebuild search index:', idxErr.message);
+        }
         success(`Restored ${notes.length} note(s) from ${backupPath}`);
       } catch (err) {
         error(`Restore failed: ${err.message}`);

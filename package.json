@@ -1,14 +1,15 @@
 {
   "name": "quick-memo",
-  "version": "1.9.0",
+  "version": "1.11.0",
   "description": "A CLI tool for quick note taking with tags and search",
   "main": "src/index.js",
   "bin": {
     "memo": "./bin/memo"
   },
   "scripts": {
-    "test": "node tests/test.js",
-    "start": "node bin/memo"
+    "test": "node tests/test.js && node tests/test-indexer.js",
+    "start": "node bin/memo",
+    "benchmark": "node benchmarks/search-benchmark.js"
   },
   "keywords": [
     "productivity",

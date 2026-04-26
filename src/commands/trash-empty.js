@@ -2,6 +2,7 @@ const Store = require('../lib/store');
 const { loadConfig, getCommandConfig } = require('../lib/config');
 const { success, info } = require('../lib/helpers');
 const chalk = require('chalk');
+const IndexManager = require('../lib/indexManager');
 
 module.exports = function registerTrashEmptyCommand(program) {
   program
@@ -45,6 +46,13 @@ module.exports = function registerTrashEmptyCommand(program) {
 
       function performEmptyTrash() {
         store.emptyTrash();
+        // Rebuild index to ensure consistency (simplest, safe approach)
+        try {
+          const indexMgr = new IndexManager(store);
+          indexMgr.rebuild();
+        } catch (idxErr) {
+          console.warn('Failed to rebuild search index after emptying trash:', idxErr.message);
+        }
         success(`Emptyed trash: ${trash.length} note(s) permanently deleted`);
       }
     });

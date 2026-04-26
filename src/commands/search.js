@@ -2,6 +2,7 @@ const Store = require('../lib/store');
 const stringSimilarity = require('string-similarity');
 const { info } = require('../lib/helpers');
 const chalk = require('chalk');
+const indexer = require('../lib/indexer');
 
 module.exports = function registerSearchCommand(program) {
   program
@@ -18,10 +19,19 @@ module.exports = function registerSearchCommand(program) {
         process.exit(1);
       }
       const store = new Store();
-      const notes = store.getNotes();
+      // Try to use index for faster search
+      let notes = null;
+      const indexPath = indexer.getIndexPath();
+      const index = indexer.loadIndex(indexPath);
+      if (index && !indexer.needsRebuild(store.dataPath, index)) {
+        notes = indexer.getIndexedNotes(index);
+      } else {
+        notes = store.getNotes();
+      }
       let results = [];
       let threshold = null;
 
+      const queryLower = trimmed.toLowerCase();
       if (options.fuzzy) {
         // Fuzzy search: find notes with similar content
         threshold = parseFloat(options.threshold);
@@ -29,21 +39,22 @@ module.exports = function registerSearchCommand(program) {
           console.error(chalk.red('✗ Threshold must be a number between 0 and 1'));
           process.exit(1);
         }
-        // Calculate similarity scores for all notes
+        // Use precomputed contentLower if available for efficiency
         const scored = notes.map(note => {
-          const similarity = stringSimilarity.compareTwoStrings(trimmed.toLowerCase(), note.content.toLowerCase());
+          const contentLower = note.contentLower || note.content.toLowerCase();
+          const similarity = stringSimilarity.compareTwoStrings(queryLower, contentLower);
           return { note, score: similarity };
         });
-        // Filter by threshold and sort by score descending
         results = scored
           .filter(item => item.score >= threshold)
           .sort((a, b) => b.score - a.score)
           .map(item => item.note);
       } else {
-        // Exact search (original behavior)
-        results = notes.filter(n =>
-          n.content.toLowerCase().includes(trimmed.toLowerCase())
-        );
+        // Exact search (use precomputed contentLower when available)
+        results = notes.filter(n => {
+          const content = n.contentLower || n.content.toLowerCase();
+          return content.includes(queryLower);
+        });
       }
 
       // Apply tag filter if provided

@@ -2,6 +2,7 @@ const Store = require('../lib/store');
 const { loadConfig, getCommandConfig } = require('../lib/config');
 const { success, error, info } = require('../lib/helpers');
 const chalk = require('chalk');
+const IndexManager = require('../lib/indexManager');
 
 module.exports = function registerPurgeCommand(program) {
   program
@@ -41,7 +42,14 @@ module.exports = function registerPurgeCommand(program) {
       }
 
       function performPurge() {
+        const indexMgr = new IndexManager(store);
+        indexMgr.load();
         store.permanentlyDelete(id);
+        try {
+          indexMgr.afterDelete(id);
+        } catch (idxErr) {
+          console.warn('Failed to update search index:', idxErr.message);
+        }
         success(`Purged note: ${toDelete.content}`);
       }
     });

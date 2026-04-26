@@ -3,6 +3,7 @@ const { generateId } = require('../lib/utils');
 const { success, error, warn, info } = require('../lib/helpers');
 const fs = require('fs');
 const path = require('path');
+const IndexManager = require('../lib/indexManager');
 
 module.exports = function registerImportCommand(program) {
   program
@@ -149,9 +150,15 @@ module.exports = function registerImportCommand(program) {
           return;
         }
 
-        // Add notes
-        for (const note of importedNotes) {
-          store.addNote(note);
+        // Add all notes in a single batch operation to minimize file I/O
+        store.addNotes(importedNotes);
+
+        // Rebuild index after bulk import to ensure search is up-to-date
+        try {
+          const indexMgr = new IndexManager(store);
+          indexMgr.rebuild();
+        } catch (idxErr) {
+          console.warn('Failed to update search index:', idxErr.message);
         }
 
         success(`Imported ${importedNotes.length} note(s)`);

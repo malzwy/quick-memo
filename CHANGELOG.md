@@ -5,7 +5,29 @@ All notable changes to Quick Memo will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.9.0] - 2026-04-22
+## [1.11.0] - 2026-04-25
+
+### Added
+- 🏗️ **IndexManager** class to centralize and unify search index management
+  - Eliminates code duplication across commands (add, edit, delete, trash, purge, restore, untag)
+  - Ensures consistent index update behavior and easier future enhancements
+  - Provides methods: `afterAdd()`, `afterEdit()`, `afterDelete()`, `rebuild()`
+- ⚡ **Batch note insertion** via new `Store.addNotes()` method
+  - Dramatically improves import performance: O(n) file writes instead of O(n²)
+  - Reduces I/O operations when importing large datasets (e.g., 1000 notes: 1 write vs 1000)
+  - Import command now uses batch insertion and single index rebuild
+
+### Improved
+- Refactored all note-modifying commands to use `IndexManager` for cleaner code and maintainability
+- Enhanced `import` command efficiency: collects all notes then writes once, followed by single index rebuild
+- Added missing index update for `trash-restore` command (previously omitted, now consistent)
+
+### Fixed
+- Fixed potential index inconsistency when restoring trashed notes by adding index update
+
+---
+
+## [1.10.0] - 2026-04-23
 
 ### Added
 - ✨ `config` command group for managing settings without editing files
