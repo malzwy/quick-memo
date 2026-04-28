@@ -14,23 +14,10 @@ module.exports = function registerEditCommand(program) {
         process.exit(1);
       }
       const store = new Store();
-      const notes = store.getNotes();
-      const noteIndex = notes.findIndex(n => n.id === id);
-      if (noteIndex === -1) {
-        error(`Note with ID ${id} not found.`);
-        process.exit(1);
-      }
       const indexMgr = new IndexManager(store);
       indexMgr.load();
-      const updated = {
-        ...notes[noteIndex],
-        content: trimmed,
-        tags: newTags || notes[noteIndex].tags,
-        updatedAt: Date.now()
-      };
-      notes[noteIndex] = updated;
       try {
-        store.saveNotes(notes);
+        const updated = store.editNote(id, trimmed, newTags);
         // Update index
         try {
           indexMgr.afterEdit(updated);

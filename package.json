@@ -7,7 +7,7 @@
     "memo": "./bin/memo"
   },
   "scripts": {
-    "test": "node tests/test.js && node tests/test-indexer.js",
+    "test": "node tests/test.js && node tests/test-indexer.js && node tests/test-atomic.js",
     "start": "node bin/memo",
     "benchmark": "node benchmarks/search-benchmark.js"
   },

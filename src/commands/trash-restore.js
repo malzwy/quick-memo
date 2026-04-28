@@ -18,6 +18,6 @@ module.exports = function registerTrashRestoreCommand(program) {
         console.warn('Failed to update search index:', idxErr.message);
       }
       success(`Restored: ${restored.content}`);
-      info(`Restored at: ${new Date(restored.createdAt).toLocaleString()`);
+      info(`Restored at: ${new Date(restored.createdAt).toLocaleString()}`);
     });
 };

@@ -20,7 +20,7 @@ module.exports = function registerRestoreCommand(program) {
           process.exit(1);
         }
         const store = new Store();
-        store.saveNotes(notes);
+        store.replaceAll(notes);
         try {
           const indexMgr = new IndexManager(store);
           indexMgr.rebuild();

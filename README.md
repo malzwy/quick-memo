@@ -229,6 +229,9 @@ memo config set delete.confirmDelete false
 
 # Unset a configuration key
 memo config unset list.detailed
+
+# Validate current configuration
+memo config validate
 ```
 
 Supported configuration keys:
@@ -241,6 +244,8 @@ Supported configuration keys:
 - `purge.confirmDelete`: boolean
 
 Boolean values are parsed from JSON `true`/`false` or plain strings.
+
+Use `memo config validate` to check your configuration for errors. Invalid values will be rejected when setting with `memo config set`.
 
 ### Backup and Restore
 
