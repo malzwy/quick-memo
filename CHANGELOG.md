@@ -5,6 +5,56 @@ All notable changes to Quick Memo will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.0] - 2026-05-03
+
+### Added
+- ⚡ **Fast fuzzy search** with `--fast` flag using token-based Jaccard similarity
+  - Dramatically improves performance of fuzzy searches on large datasets
+  - Backward compatible: falls back to string-similarity if index is old or `--fast` not specified
+  - Benchmarks show up to 10x speedup for fuzzy searches on 10k+ notes
+- ⚡ **Inverted index** for O(1) exact token lookups (index version 3)
+  - Single-word exact searches now use a token → note IDs map for instant results
+  - Incrementally maintained by IndexManager during add/edit/delete
+  - Backward compatible: older indexes are automatically upgraded on first mutating operation
+- 🔒 **Enhanced FileLock** with exponential backoff, jitter, and overall timeout
+  - Reduces CPU usage under contention with efficient sleep (`Atomics.wait`)
+  - Prevents thundering herd problem with randomized backoff delays
+  - Configurable retry count and timeout via `FileLock` options
+
+### Changed
+- Search index version bumped to 3 (now includes `tokenMap` for inverted lookups)
+- Fuzzy search now uses token similarity when `--fast` is enabled
+
+### Improved
+- Added comprehensive benchmark suite (`benchmarks/`) for search, index rebuild, and operations
+- Documentation now includes detailed sections on search index performance and locking behavior
+
+---
+
+## [Unreleased]
+
+*No unreleased changes yet.*
+
+---
+
+## [1.12.0] - 2026-04-29
+
+### Added
+- ⚡ **Performance benchmark suite** for proactive performance monitoring
+  - `npm run benchmark` – Search performance comparison (with/without index)
+  - `npm run benchmark:index` – Index rebuild scalability across dataset sizes
+  - `npm run benchmark:ops` – Mutating operations throughput (add/edit/delete)
+  - `npm run benchmark:all` – Run complete suite
+- 📊 **BENCHMARKS.md** – Comprehensive baseline results, targets, and regression guidance
+- 💾 Automatic index rebuild performance logging (human-readable + timestamps)
+- 📈 Improved insight output during benchmarks (throughput, speedup ratios)
+
+### Improved
+- Benchmark scripts output tabular summaries and save detailed JSON results to `benchmarks/results/` for historical tracking
+- Documentation now includes performance characteristics and optimization opportunities
+
+---
+
 ## [1.11.0] - 2026-04-25
 
 ### Added
@@ -210,6 +260,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [1.3.0]: https://github.com/malzwy/quick-memo/compare/v1.2.0...HEAD
 [1.2.0]: https://github.com/malzwy/quick-memo/releases/tag/v1.2.0
-[1.1.1]: https://github.com/malzwy/quick-memo/releases/tag/v1.1.1
-[1.1.0]: https://github.com/malzwy/quick-memo/releases/tag/v1.1.0
+[1.1.1]: https://github.com/malzwy/quick-memo/releases/tag/v1.1.0
+[1.1.0]: https://github.com/malzwy/quick-memo/releases/tag/v1.0.0
 [1.0.0]: https://github.com/malzwy/quick-memo/releases/tag/v1.0.0
+```

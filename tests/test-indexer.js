@@ -53,11 +53,17 @@ test('buildIndex creates valid structure', () => {
   fs.writeFileSync(testDataPath, JSON.stringify(notes));
   const index = indexer.buildIndex(notes, testDataPath);
   if (!index) throw new Error('Index is null');
-  if (index.version !== 1) throw new Error('Invalid version');
+  if (index.version !== 3) throw new Error('Invalid version'); // now v3
   if (index.noteCount !== 2) throw new Error('Wrong noteCount');
   if (!index.notes[0].contentLower) throw new Error('Missing contentLower');
   if (index.notes[0].contentLower !== 'hello world') throw new Error('contentLower incorrect');
   if (typeof index.rev !== 'string') throw new Error('Missing or invalid rev');
+  // Token map checks
+  if (!index.tokenMap) throw new Error('Missing tokenMap');
+  if (!index.tokenMap['hello'] || !index.tokenMap['hello'].includes('1')) throw new Error('tokenMap missing hello->1');
+  if (!index.tokenMap['world'] || !index.tokenMap['world'].includes('1')) throw new Error('tokenMap missing world->1');
+  if (!index.tokenMap['foo'] || !index.tokenMap['foo'].includes('2')) throw new Error('tokenMap missing foo->2');
+  if (!index.tokenMap['bar'] || !index.tokenMap['bar'].includes('2')) throw new Error('tokenMap missing bar->2');
 });
 
 // Test: Save and load index
@@ -116,7 +122,78 @@ test('getIndexedNotes returns notes', () => {
   if (result[0].contentLower !== 'first') throw new Error('Lowercasing failed');
 });
 
-// Test: Integration with Store and search simulation
+// Tests for inverted index incremental updates
+ test('addOrUpdateNote adds tokenMap entries for new note', () => {
+   const index = { version: 3, notes: [], tokenMap: {}, noteCount: 0 };
+   const note = { id: 'new1', content: 'Hello world', tags: [], createdAt: Date.now() };
+   indexer.addOrUpdateNote(index, note);
+   if (index.notes.length !== 1) throw new Error('Note not added');
+   if (!index.tokenMap['hello'] || !index.tokenMap['hello'].includes('new1')) throw new Error('Token hello missing');
+   if (!index.tokenMap['world'] || !index.tokenMap['world'].includes('new1')) throw new Error('Token world missing');
+   if (index.noteCount !== 1) throw new Error('noteCount not updated');
+ });
+
+ test('addOrUpdateNote updates tokenMap on edit', () => {
+   const index = { version: 3, notes: [], tokenMap: {}, noteCount: 0 };
+   const note1 = { id: 'a', content: 'Hello world', tags: [], createdAt: Date.now() };
+   indexer.addOrUpdateNote(index, note1);
+   if (!index.tokenMap['hello'].includes('a')) throw new Error('Initial tokenMap wrong');
+   // Edit to new content
+   const noteEdited = { id: 'a', content: 'Foo bar', tags: [], createdAt: note1.createdAt, updatedAt: Date.now() };
+   indexer.addOrUpdateNote(index, noteEdited);
+   if (index.notes.length !== 1) throw new Error('Should still have 1 note');
+   // Old tokens removed
+   if (index.tokenMap['hello'] && index.tokenMap['hello'].includes('a')) throw new Error('Old token hello not removed');
+   if (index.tokenMap['world'] && index.tokenMap['world'].includes('a')) throw new Error('Old token world not removed');
+   // New tokens present
+   if (!index.tokenMap['foo'] || !index.tokenMap['foo'].includes('a')) throw new Error('New token foo missing');
+   if (!index.tokenMap['bar'] || !index.tokenMap['bar'].includes('a')) throw new Error('New token bar missing');
+ });
+
+ test('removeNote removes tokenMap entries and note', () => {
+   const index = { version: 3, notes: [], tokenMap: {}, noteCount: 0 };
+   const note = { id: 'x', content: 'Test content', tags: [], createdAt: Date.now() };
+   indexer.addOrUpdateNote(index, note);
+   if (!index.tokenMap['test']) throw new Error('Token test missing');
+   if (!index.tokenMap['content']) throw new Error('Token content missing');
+   const removed = indexer.removeNote(index, 'x');
+   if (!removed) throw new Error('removeNote should return true');
+   if (index.notes.length !== 0) throw new Error('Note should be removed');
+   if (index.tokenMap['test'] && index.tokenMap['test'].includes('x')) throw new Error('Token test still contains note id');
+   if (index.tokenMap['content'] && index.tokenMap['content'].includes('x')) throw new Error('Token content still contains note id');
+   if (index.noteCount !== 0) throw new Error('noteCount should be 0');
+ });
+
+ // Test: Backward compatibility: v2 index loads without tokenMap
+ test('v2 index loads without tokenMap', () => {
+   // Create a v2 index manually (no tokenMap)
+   const v2index = { version: 2, rev: '123', lastUpdated: Date.now(), noteCount: 1, notes: [{ id: '1', content: 'Test', contentLower: 'test', tags: [], createdAt: Date.now(), updatedAt: null }] };
+   // Should not have tokenMap
+   if (v2index.tokenMap) throw new Error('v2 index should not have tokenMap');
+   // Loading via loadIndex won't change version; we just ensure structure accepted
+   const loaded = { ...v2index };
+   if (loaded.version !== 2) throw new Error('Version should remain 2');
+ });
+
+ // Test: IndexManager marks v2 index as not fresh to trigger upgrade
+ test('IndexManager treats v2 index as not fresh', () => {
+   const IndexManager = require('../src/lib/indexManager');
+   const store = new Store(testDataPath);
+   // Prepare notes
+   store.saveNotes([{ id: 'v', content: 'V2 note', tags: [], createdAt: Date.now() }]);
+   // Build a v2 index manually (remove tokenMap, set version 2)
+   const notes = store.getNotes();
+   let index = indexer.buildIndex(notes, testDataPath); // v3
+   index.version = 2; delete index.tokenMap;
+   indexer.saveIndex(index, indexPath);
+   // Load via IndexManager
+   const im = new IndexManager(store);
+   im.load();
+   if (!im.index) throw new Error('Index should load');
+   if (im.isFresh()) throw new Error('v2 index should not be considered fresh (should trigger upgrade)');
+ });
+
+ // Test: Integration with Store and search simulation
 test('search using index matches expected notes', () => {
   // Prepare test data
   const store = new Store(testDataPath);
@@ -168,6 +245,31 @@ test('fuzzy search on index respects threshold', () => {
   // The typo might also be included depending on threshold; we just check that scoring works
   if (results.length === 0) throw new Error('No results above threshold');
 });
+
+// Test: Inverted index exact search simulation
+ test('Inverted index exact search returns matching notes', () => {
+   const notes = [
+     { id: '1', content: 'Hello world', tags: ['a'], createdAt: Date.now() },
+     { id: '2', content: 'World of goo', tags: ['b'], createdAt: Date.now() },
+     { id: '3', content: 'Foo bar', tags: ['c'], createdAt: Date.now() }
+   ];
+   fs.writeFileSync(testDataPath, JSON.stringify(notes));
+   const index = indexer.buildIndex(notes, testDataPath);
+   // Simulate single-word exact search for 'world'
+   const token = 'world';
+   const ids = index.tokenMap[token] || [];
+   const noteMap = new Map(index.notes.map(n => [n.id, n]));
+   const results = ids.map(id => noteMap.get(id)).filter(Boolean);
+   if (results.length !== 2) throw new Error(`Expected 2 results for 'world', got ${results.length}`);
+   if (!results.every(n => n.content.toLowerCase().includes(token))) throw new Error('Results missing token');
+ });
+
+ test('Inverted index returns empty for missing token', () => {
+   const notes = [{ id: '1', content: 'Hello', tags: [], createdAt: Date.now() }];
+   const index = indexer.buildIndex(notes, testDataPath);
+   const ids = index.tokenMap['nonexistent'] || [];
+   if (ids.length !== 0) throw new Error('Should be empty for missing token');
+ });
 
 // Summary
 console.log('\n' + '='.repeat(50));

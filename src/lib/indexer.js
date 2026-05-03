@@ -37,21 +37,43 @@ function needsRebuild(notesPath, index) {
   return currentRev !== index.rev;
 }
 
+function tokenize(text) {
+  // Simple word tokenization: split on non-word characters, filter empty
+  const words = text.toLowerCase().match(/\b\w+\b/g) || [];
+  // Return distinct tokens as array (no duplicates)
+  return Array.from(new Set(words));
+}
+
 function buildIndex(notes, notesPath) {
   const rev = computeRev(notesPath);
-  return {
-    version: 1,
-    rev,
-    lastUpdated: Date.now(),
-    noteCount: notes.length,
-    notes: notes.map(note => ({
+  const noteEntries = [];
+  const tokenMap = {};
+  for (const note of notes) {
+    const tokens = tokenize(note.content);
+    // Populate tokenMap
+    for (const token of tokens) {
+      if (!tokenMap[token]) {
+        tokenMap[token] = [];
+      }
+      tokenMap[token].push(note.id);
+    }
+    noteEntries.push({
       id: note.id,
       content: note.content,
       contentLower: note.content.toLowerCase(),
       tags: note.tags || [],
       createdAt: note.createdAt,
-      updatedAt: note.updatedAt || null
-    }))
+      updatedAt: note.updatedAt || null,
+      tokens
+    });
+  }
+  return {
+    version: 3,
+    rev,
+    lastUpdated: Date.now(),
+    noteCount: notes.length,
+    notes: noteEntries,
+    tokenMap
   };
 }
 
@@ -99,26 +121,86 @@ function isIndexFresh(index, notesPath) {
 }
 
 function addOrUpdateNote(index, note) {
-  const entry = {
-    id: note.id,
-    content: note.content,
-    contentLower: note.content.toLowerCase(),
-    tags: note.tags || [],
-    createdAt: note.createdAt,
-    updatedAt: note.updatedAt || null
-  };
+  const tokens = tokenize(note.content);
   const existingIdx = index.notes.findIndex(n => n.id === note.id);
   if (existingIdx !== -1) {
+    // Remove old tokens from tokenMap before updating
+    const oldNote = index.notes[existingIdx];
+    if (oldNote.tokens && index.tokenMap) {
+      for (const token of oldNote.tokens) {
+        const ids = index.tokenMap[token];
+        if (ids) {
+          const idIndex = ids.indexOf(note.id);
+          if (idIndex !== -1) {
+            ids.splice(idIndex, 1);
+            if (ids.length === 0) {
+              delete index.tokenMap[token];
+            }
+          }
+        }
+      }
+    }
+    // Update note entry
+    const entry = {
+      id: note.id,
+      content: note.content,
+      contentLower: note.content.toLowerCase(),
+      tags: note.tags || [],
+      createdAt: note.createdAt,
+      updatedAt: note.updatedAt || null,
+      tokens
+    };
     index.notes[existingIdx] = entry;
   } else {
+    // Add new note
+    const entry = {
+      id: note.id,
+      content: note.content,
+      contentLower: note.content.toLowerCase(),
+      tags: note.tags || [],
+      createdAt: note.createdAt,
+      updatedAt: note.updatedAt || null,
+      tokens
+    };
     index.notes.push(entry);
   }
+  // Add new tokens to tokenMap
+  if (!index.tokenMap) index.tokenMap = {};
+  for (const token of tokens) {
+    if (!index.tokenMap[token]) {
+      index.tokenMap[token] = [];
+    }
+    if (!index.tokenMap[token].includes(note.id)) {
+      index.tokenMap[token].push(note.id);
+    }
+  }
+  index.noteCount = index.notes.length;
 }
 
 function removeNote(index, noteId) {
-  const initialLength = index.notes.length;
-  index.notes = index.notes.filter(n => n.id !== noteId);
-  return index.notes.length < initialLength;
+  const noteIndex = index.notes.findIndex(n => n.id === noteId);
+  if (noteIndex !== -1) {
+    const note = index.notes[noteIndex];
+    // Remove from tokenMap
+    if (note.tokens && index.tokenMap) {
+      for (const token of note.tokens) {
+        const ids = index.tokenMap[token];
+        if (ids) {
+          const idIndex = ids.indexOf(noteId);
+          if (idIndex !== -1) {
+            ids.splice(idIndex, 1);
+            if (ids.length === 0) {
+              delete index.tokenMap[token];
+            }
+          }
+        }
+      }
+    }
+    index.notes.splice(noteIndex, 1);
+    index.noteCount = index.notes.length;
+    return true;
+  }
+  return false;
 }
 
 module.exports = {

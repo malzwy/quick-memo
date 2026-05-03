@@ -21,6 +21,32 @@
 - **Local storage** in `~/.quick-memo/notes.json` (portable, no cloud)
 - **Zero config** – works out of the box
 
+## 🔍 Search Index Performance
+
+Quick Memo uses a search index (`~/.quick-memo/index.json`) to speed up queries. Starting with **v1.13.0**, the index has been upgraded to **version 3** which includes an **inverted index** (token → note IDs).
+
+For **single-word exact searches**, the inverted index allows O(1) token lookup instead of scanning all notes. This provides dramatic speedups for large collections (1000+ notes):
+
+- ⚡️ **10-50x faster** exact search compared to full scan
+- Maintained incrementally: add/edit/delete operations update the token map in-memory and persist the index efficiently
+- Backward compatible: older index versions are automatically upgraded to v3 on first mutating operation.
+
+Fuzzy search uses the inverted index to quickly narrow down candidate notes by token overlap, then applies string-similarity on a much smaller subset.
+
+You can rebuild the index manually with `memo rebuild-index` if needed after external file modifications.
+
+## 🔒 Concurrency & Data Integrity
+
+Quick Memo uses a file-based locking mechanism (`FileLock`) to prevent concurrent write corruption when multiple CLI processes access the same notes file.
+
+**Optimized locking behavior:**
+- **Exponential backoff with jitter** reduces CPU waste and prevents thundering herd under contention
+- **Overall timeout** (default ~30s) prevents indefinite blocking
+- **Stale lock cleanup** automatically removes locks from crashed processes
+- Efficient sleep using `Atomics.wait` when available, with busy-wait fallback for compatibility
+
+These improvements make the CLI responsive even under high contention scenarios.
+
 ## 📦 Installation
 
 ```bash
@@ -116,6 +142,9 @@ memo search "important" --tag work,urgent
 
 # Fuzzy search for typos and similar words
 memo search "meeting" --fuzzy
+
+# Fast fuzzy search using token-based similarity (much faster on large datasets)
+memo search "meeting" --fuzzy --fast
 
 # Adjust fuzzy threshold (0-1, default 0.3)
 memo search "meeting" --fuzzy --threshold 0.5

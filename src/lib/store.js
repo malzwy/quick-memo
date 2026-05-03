@@ -51,7 +51,8 @@ class Store {
   _saveNotes(notes) {
     try {
       // Atomic write: write to temp file then rename
-      const content = JSON.stringify(notes, null, 2);
+      const compact = process.env.QUICK_MEMO_COMPACT === '1';
+      const content = JSON.stringify(notes, null, compact ? null : 2);
       const tmpPath = this.dataPath + '.tmp-' + Date.now() + '.' + process.pid;
       fs.writeFileSync(tmpPath, content, 'utf8');
       fs.renameSync(tmpPath, this.dataPath);
@@ -85,7 +86,8 @@ class Store {
 
   _saveTrash(trash) {
     try {
-      const content = JSON.stringify(trash, null, 2);
+      const compact = process.env.QUICK_MEMO_COMPACT === '1';
+      const content = JSON.stringify(trash, null, compact ? null : 2);
       const tmpPath = this.trashPath + '.tmp-' + Date.now() + '.' + process.pid;
       fs.writeFileSync(tmpPath, content, 'utf8');
       fs.renameSync(tmpPath, this.trashPath);
@@ -108,7 +110,16 @@ class Store {
   // --- Locking abstraction ---
 
   _runLocked(fn) {
-    const lock = new FileLock(this.lockPath);
+    // Allow lock timeout configuration via environment variable
+    const lockTimeoutEnv = process.env.QUICK_MEMO_LOCK_TIMEOUT;
+    const lockOptions = {};
+    if (lockTimeoutEnv) {
+      const timeoutMs = parseInt(lockTimeoutEnv, 10);
+      if (!isNaN(timeoutMs) && timeoutMs > 0) {
+        lockOptions.timeoutMs = timeoutMs;
+      }
+    }
+    const lock = new FileLock(this.lockPath, lockOptions);
     lock.acquire();
     try {
       return fn();

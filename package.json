@@ -1,6 +1,6 @@
 {
   "name": "quick-memo",
-  "version": "1.11.0",
+  "version": "1.13.0",
   "description": "A CLI tool for quick note taking with tags and search",
   "main": "src/index.js",
   "bin": {
@@ -9,7 +9,10 @@
   "scripts": {
     "test": "node tests/test.js && node tests/test-indexer.js && node tests/test-atomic.js",
     "start": "node bin/memo",
-    "benchmark": "node benchmarks/search-benchmark.js"
+    "benchmark": "node benchmarks/search-benchmark.js",
+    "benchmark:index": "node benchmarks/index-rebuild.js",
+    "benchmark:ops": "node benchmarks/add-edit-delete.js",
+    "benchmark:all": "npm run benchmark && npm run benchmark:index && npm run benchmark:ops"
   },
   "keywords": [
     "productivity",

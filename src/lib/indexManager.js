@@ -15,7 +15,7 @@ class IndexManager {
    */
   load() {
     this.index = indexer.loadIndex(this.indexPath);
-    this.fresh = this.index && indexer.isIndexFresh(this.index, this.store.dataPath);
+    this.fresh = this.index && indexer.isIndexFresh(this.index, this.store.dataPath) && this.index.version >= 3;
     return this.index;
   }
 
