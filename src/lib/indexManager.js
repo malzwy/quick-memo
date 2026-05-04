@@ -96,6 +96,8 @@ class IndexManager {
     const notes = this.store.getNotes();
     this.index = indexer.buildIndex(notes, this.store.dataPath);
     indexer.saveIndex(this.index, this.indexPath);
+    // Mark index as fresh after successful rebuild so subsequent operations use incremental updates
+    this.fresh = true;
   }
 }
 

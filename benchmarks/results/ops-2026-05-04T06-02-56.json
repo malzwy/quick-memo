@@ -1,0 +1,20 @@
+[
+  {
+    "op": "add",
+    "count": 1000,
+    "durationMs": 4077.180779,
+    "opsPerMs": 0.24526751552215145
+  },
+  {
+    "op": "edit",
+    "count": 500,
+    "durationMs": 4204.444126,
+    "opsPerMs": 0.11892178490565103
+  },
+  {
+    "op": "delete",
+    "count": 500,
+    "durationMs": 3259.200184,
+    "opsPerMs": 0.15341187155504898
+  }
+]

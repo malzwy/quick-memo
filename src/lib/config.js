@@ -26,7 +26,9 @@ function loadConfig() {
 function saveConfig(config) {
   const configPath = getConfigPath();
   fs.mkdirSync(path.dirname(configPath), { recursive: true });
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
+  // Use compact JSON by default for performance; set QUICK_MEMO_COMPACT=0 to get pretty-print.
+  const compact = process.env.QUICK_MEMO_COMPACT !== '0';
+  fs.writeFileSync(configPath, JSON.stringify(config, null, compact ? null : 2), 'utf8');
 }
 
 function getCommandConfig(config, command, options = {}) {

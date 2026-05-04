@@ -51,7 +51,9 @@ class Store {
   _saveNotes(notes) {
     try {
       // Atomic write: write to temp file then rename
-      const compact = process.env.QUICK_MEMO_COMPACT === '1';
+      // Default to compact storage (no pretty-print) for performance and smaller footprint.
+      // Set QUICK_MEMO_COMPACT=0 to disable compact and get pretty-printed JSON for debugging.
+      const compact = process.env.QUICK_MEMO_COMPACT !== '0';
       const content = JSON.stringify(notes, null, compact ? null : 2);
       const tmpPath = this.dataPath + '.tmp-' + Date.now() + '.' + process.pid;
       fs.writeFileSync(tmpPath, content, 'utf8');
@@ -86,7 +88,8 @@ class Store {
 
   _saveTrash(trash) {
     try {
-      const compact = process.env.QUICK_MEMO_COMPACT === '1';
+      // Same compact handling as notes
+      const compact = process.env.QUICK_MEMO_COMPACT !== '0';
       const content = JSON.stringify(trash, null, compact ? null : 2);
       const tmpPath = this.trashPath + '.tmp-' + Date.now() + '.' + process.pid;
       fs.writeFileSync(tmpPath, content, 'utf8');

@@ -33,7 +33,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-*No unreleased changes yet.*
+### Fixed
+- **IndexManager rebuild**: correctly sets `fresh` flag after rebuilding, enabling incremental updates for subsequent operations. Previously, rebuild left `fresh=false`, causing every add/edit/delete to rebuild the entire index, resulting in O(N²) performance for batch operations.
+
+### Performance
+- **Compact JSON storage** by default for notes, trash, and configuration files. This reduces file sizes (~18% smaller) and improves I/O throughput (~5% faster writes). Environment variable `QUICK_MEMO_COMPACT=0` restores pretty-printed JSON for debugging.
+
+### Improved
+- Documentation updated to reflect default compact storage and configuration options.
 
 ---
 

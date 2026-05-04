@@ -19,6 +19,7 @@
 - **JSON output** for scripting and automation (`-j` flag)
 - **Colored terminal output** for better UX
 - **Local storage** in `~/.quick-memo/notes.json` (portable, no cloud)
+  - Data is stored in compact JSON format by default for optimal performance. Set `QUICK_MEMO_COMPACT=0` to enable human-pretty JSON for manual inspection.
 - **Zero config** – works out of the box
 
 ## 🔍 Search Index Performance
