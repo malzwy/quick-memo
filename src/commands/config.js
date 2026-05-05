@@ -3,6 +3,7 @@ const { validateConfigKey } = require('../lib/configSchema');
 const { success, error, info } = require('../lib/helpers');
 const fs = require('fs');
 const path = require('path');
+const chalk = require('chalk');
 
 module.exports = function registerConfigCommand(program) {
   const configCommand = program.command('config')
@@ -103,6 +104,41 @@ module.exports = function registerConfigCommand(program) {
         }
       } else {
         error('Only single-level dot notation supported (e.g., list.sortBy)');
+      }
+    });
+
+  // Get a configuration value
+  configCommand
+    .command('get <key>')
+    .description('Retrieve a configuration value (supports dot notation)')
+    .option('--default <value>', 'Default value if key is not found')
+    .action((key, options) => {
+      const config = loadConfig();
+      const parts = key.split('.');
+      let value;
+      if (parts.length === 2) {
+        const [group, setting] = parts;
+        value = config[group]?.[setting];
+      } else if (parts.length === 1) {
+        value = config[key];
+      } else {
+        return error('Only single-level dot notation supported (e.g., list.sortBy)');
+      }
+
+      if (value === undefined) {
+        if (options.default !== undefined) {
+          console.log(options.default);
+        } else {
+          error(`Key ${key} not found in config`);
+          process.exit(1);
+        }
+      } else {
+        // Output raw value for scripting; use JSON.stringify for objects
+        if (typeof value === 'object' && value !== null) {
+          console.log(JSON.stringify(value));
+        } else {
+          console.log(String(value));
+        }
       }
     });
 
