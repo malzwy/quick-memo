@@ -6,12 +6,12 @@ module.exports = function registerRebuildIndexCommand(program) {
   program
     .command('rebuild-index')
     .description('Rebuild the search index manually')
-    .action(() => {
+    .action(async () => {
       try {
         const store = new Store();
         const notes = store.getNotes();
         const indexPath = indexer.getIndexPath();
-        const index = indexer.buildIndex(notes, store.dataPath);
+        const index = await indexer.buildIndex(notes, store.dataPath);
         if (indexer.saveIndex(index, indexPath)) {
           success(`Index rebuilt successfully with ${notes.length} note(s)`);
           info(`Index stored at: ${indexPath}`);

@@ -2,6 +2,12 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
+// Config caching to avoid redundant disk I/O
+let configCache = null;
+let configCacheMtime = 0;
+let configCacheSize = -1;
+let configCachePath = null;
+
 function getConfigPath() {
   const envPath = process.env.QUICK_MEMO_CONFIG;
   if (envPath) return envPath;
@@ -10,15 +16,47 @@ function getConfigPath() {
 
 function loadConfig() {
   const configPath = getConfigPath();
-  if (!fs.existsSync(configPath)) {
-    return {};
-  }
+
   try {
+    // Check if file exists to get stats
+    let stats = null;
+    if (fs.existsSync(configPath)) {
+      stats = fs.statSync(configPath);
+    }
+
+    // If we have a cached entry for this exact path and mtime AND size unchanged, return cache
+    if (configCachePath === configPath && configCache !== null && stats && configCacheMtime === stats.mtimeMs && configCacheSize === stats.size) {
+      return configCache;
+    }
+
+    // If file doesn't exist, return empty config (and cache the fact)
+    if (!stats) {
+      configCache = {};
+      configCacheMtime = 0;
+      configCacheSize = 0;
+      configCachePath = configPath;
+      return {};
+    }
+
+    // Read and parse the config file
     const data = fs.readFileSync(configPath, 'utf8');
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+
+    // Update cache
+    configCache = parsed;
+    configCacheMtime = stats.mtimeMs;
+    configCacheSize = stats.size;
+    configCachePath = configPath;
+    return parsed;
   } catch (e) {
     // Log warning but don't crash - return empty config
     console.error(`Warning: Could not parse config file at ${configPath}: ${e.message}`);
+    // Invalidate cache on parse error
+    if (configCachePath === configPath) {
+      configCache = null;
+      configCacheMtime = 0;
+      configCacheSize = -1;
+    }
     return {};
   }
 }
@@ -29,6 +67,19 @@ function saveConfig(config) {
   // Use compact JSON by default for performance; set QUICK_MEMO_COMPACT=0 to get pretty-print.
   const compact = process.env.QUICK_MEMO_COMPACT !== '0';
   fs.writeFileSync(configPath, JSON.stringify(config, null, compact ? null : 2), 'utf8');
+
+  // Update cache after successful write
+  try {
+    const stats = fs.statSync(configPath);
+    configCache = config;
+    configCacheMtime = stats.mtimeMs;
+    configCachePath = configPath;
+  } catch (e) {
+    // If we can't stat, invalidate cache to force reload next time
+    configCache = null;
+    configCacheMtime = 0;
+    configCachePath = null;
+  }
 }
 
 function getCommandConfig(config, command, options = {}) {

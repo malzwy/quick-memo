@@ -23,35 +23,28 @@ if (!fs.existsSync(testDir)) {
 // Load required modules
 const indexer = require('../src/lib/indexer');
 const Store = require('../src/lib/store');
+const IndexManager = require('../src/lib/indexManager');
 const { generateId } = require('../src/lib/utils');
 
-// Helper: simple test runner
 let passed = 0;
 let failed = 0;
+const testCases = [];
 
 function test(name, fn) {
-  try {
-    fn();
-    console.log(`✓ ${name}`);
-    passed++;
-  } catch (e) {
-    console.log(`✗ ${name}`);
-    console.log(`  Error: ${e.message}`);
-    failed++;
-  }
+  testCases.push({ name, fn });
 }
 
 console.log('\n🧪 Quick Memo Indexer Test Suite\n');
 
 // Test: Index building
-test('buildIndex creates valid structure', () => {
+test('buildIndex creates valid structure', async () => {
   const notes = [
     { id: '1', content: 'Hello world', tags: ['a'], createdAt: Date.now() },
     { id: '2', content: 'Foo bar', tags: ['b'], createdAt: Date.now() }
   ];
   // Ensure the notes file exists so rev can be computed
   fs.writeFileSync(testDataPath, JSON.stringify(notes));
-  const index = indexer.buildIndex(notes, testDataPath);
+  const index = await indexer.buildIndex(notes, testDataPath);
   if (!index) throw new Error('Index is null');
   if (index.version !== 3) throw new Error('Invalid version'); // now v3
   if (index.noteCount !== 2) throw new Error('Wrong noteCount');
@@ -67,11 +60,11 @@ test('buildIndex creates valid structure', () => {
 });
 
 // Test: Save and load index
-test('saveIndex and loadIndex', () => {
+test('saveIndex and loadIndex', async () => {
   const notes = [
     { id: 'a', content: 'Test note', tags: [], createdAt: Date.now() }
   ];
-  const index = indexer.buildIndex(notes, testDataPath);
+  const index = await indexer.buildIndex(notes, testDataPath);
   indexer.saveIndex(index, indexPath);
   const loaded = indexer.loadIndex(indexPath);
   if (!loaded) throw new Error('Failed to load index');
@@ -87,10 +80,10 @@ test('needsRebuild returns true when index missing', () => {
 });
 
 // Test: needsRebuild returns true when notes file mtime changes
-test('needsRebuild detects file modification', () => {
+test('needsRebuild detects file modification', async () => {
   // Create a dummy index
   const notes = [{ id: 'x', content: 'X', tags: [], createdAt: Date.now() }];
-  const index = indexer.buildIndex(notes, testDataPath);
+  const index = await indexer.buildIndex(notes, testDataPath);
   indexer.saveIndex(index, indexPath);
   const loaded = indexer.loadIndex(indexPath);
   // Modify notes file (same content, different mtime)
@@ -100,10 +93,10 @@ test('needsRebuild detects file modification', () => {
 });
 
 // Test: needsRebuild returns false when index and notes in sync
-test('needsRebuild returns false when up-to-date', () => {
+test('needsRebuild returns false when up-to-date', async () => {
   const notes = [{ id: 'y', content: 'Y', tags: [], createdAt: Date.now() }];
   fs.writeFileSync(testDataPath, JSON.stringify(notes));
-  const index = indexer.buildIndex(notes, testDataPath);
+  const index = await indexer.buildIndex(notes, testDataPath);
   indexer.saveIndex(index, indexPath);
   const loaded = indexer.loadIndex(indexPath);
   const needs = indexer.needsRebuild(testDataPath, loaded);
@@ -123,78 +116,77 @@ test('getIndexedNotes returns notes', () => {
 });
 
 // Tests for inverted index incremental updates
- test('addOrUpdateNote adds tokenMap entries for new note', () => {
-   const index = { version: 3, notes: [], tokenMap: {}, noteCount: 0 };
-   const note = { id: 'new1', content: 'Hello world', tags: [], createdAt: Date.now() };
-   indexer.addOrUpdateNote(index, note);
-   if (index.notes.length !== 1) throw new Error('Note not added');
-   if (!index.tokenMap['hello'] || !index.tokenMap['hello'].includes('new1')) throw new Error('Token hello missing');
-   if (!index.tokenMap['world'] || !index.tokenMap['world'].includes('new1')) throw new Error('Token world missing');
-   if (index.noteCount !== 1) throw new Error('noteCount not updated');
- });
+test('addOrUpdateNote adds tokenMap entries for new note', () => {
+  const index = { version: 3, notes: [], tokenMap: {}, noteCount: 0 };
+  const note = { id: 'new1', content: 'Hello world', tags: [], createdAt: Date.now() };
+  indexer.addOrUpdateNote(index, note);
+  if (index.notes.length !== 1) throw new Error('Note not added');
+  if (!index.tokenMap['hello'] || !index.tokenMap['hello'].has('new1')) throw new Error('Token hello missing');
+  if (!index.tokenMap['world'] || !index.tokenMap['world'].has('new1')) throw new Error('Token world missing');
+  if (index.noteCount !== 1) throw new Error('noteCount not updated');
+});
 
- test('addOrUpdateNote updates tokenMap on edit', () => {
-   const index = { version: 3, notes: [], tokenMap: {}, noteCount: 0 };
-   const note1 = { id: 'a', content: 'Hello world', tags: [], createdAt: Date.now() };
-   indexer.addOrUpdateNote(index, note1);
-   if (!index.tokenMap['hello'].includes('a')) throw new Error('Initial tokenMap wrong');
-   // Edit to new content
-   const noteEdited = { id: 'a', content: 'Foo bar', tags: [], createdAt: note1.createdAt, updatedAt: Date.now() };
-   indexer.addOrUpdateNote(index, noteEdited);
-   if (index.notes.length !== 1) throw new Error('Should still have 1 note');
-   // Old tokens removed
-   if (index.tokenMap['hello'] && index.tokenMap['hello'].includes('a')) throw new Error('Old token hello not removed');
-   if (index.tokenMap['world'] && index.tokenMap['world'].includes('a')) throw new Error('Old token world not removed');
-   // New tokens present
-   if (!index.tokenMap['foo'] || !index.tokenMap['foo'].includes('a')) throw new Error('New token foo missing');
-   if (!index.tokenMap['bar'] || !index.tokenMap['bar'].includes('a')) throw new Error('New token bar missing');
- });
+test('addOrUpdateNote updates tokenMap on edit', () => {
+  const index = { version: 3, notes: [], tokenMap: {}, noteCount: 0 };
+  const note1 = { id: 'a', content: 'Hello world', tags: [], createdAt: Date.now() };
+  indexer.addOrUpdateNote(index, note1);
+  if (!index.tokenMap['hello'].has('a')) throw new Error('Initial tokenMap wrong');
+  // Edit to new content
+  const noteEdited = { id: 'a', content: 'Foo bar', tags: [], createdAt: note1.createdAt, updatedAt: Date.now() };
+  indexer.addOrUpdateNote(index, noteEdited);
+  if (index.notes.length !== 1) throw new Error('Should still have 1 note');
+  // Old tokens removed
+  if (index.tokenMap['hello'] && index.tokenMap['hello'].has('a')) throw new Error('Old token hello not removed');
+  if (index.tokenMap['world'] && index.tokenMap['world'].has('a')) throw new Error('Old token world not removed');
+  // New tokens present
+  if (!index.tokenMap['foo'] || !index.tokenMap['foo'].has('a')) throw new Error('New token foo missing');
+  if (!index.tokenMap['bar'] || !index.tokenMap['bar'].has('a')) throw new Error('New token bar missing');
+});
 
- test('removeNote removes tokenMap entries and note', () => {
-   const index = { version: 3, notes: [], tokenMap: {}, noteCount: 0 };
-   const note = { id: 'x', content: 'Test content', tags: [], createdAt: Date.now() };
-   indexer.addOrUpdateNote(index, note);
-   if (!index.tokenMap['test']) throw new Error('Token test missing');
-   if (!index.tokenMap['content']) throw new Error('Token content missing');
-   const removed = indexer.removeNote(index, 'x');
-   if (!removed) throw new Error('removeNote should return true');
-   if (index.notes.length !== 0) throw new Error('Note should be removed');
-   if (index.tokenMap['test'] && index.tokenMap['test'].includes('x')) throw new Error('Token test still contains note id');
-   if (index.tokenMap['content'] && index.tokenMap['content'].includes('x')) throw new Error('Token content still contains note id');
-   if (index.noteCount !== 0) throw new Error('noteCount should be 0');
- });
+test('removeNote removes tokenMap entries and note', () => {
+  const index = { version: 3, notes: [], tokenMap: {}, noteCount: 0 };
+  const note = { id: 'x', content: 'Test content', tags: [], createdAt: Date.now() };
+  indexer.addOrUpdateNote(index, note);
+  if (!index.tokenMap['test']) throw new Error('Token test missing');
+  if (!index.tokenMap['content']) throw new Error('Token content missing');
+  const removed = indexer.removeNote(index, 'x');
+  if (!removed) throw new Error('removeNote should return true');
+  if (index.notes.length !== 0) throw new Error('Note should be removed');
+  if (index.tokenMap['test'] && index.tokenMap['test'].has('x')) throw new Error('Token test still contains note id');
+  if (index.tokenMap['content'] && index.tokenMap['content'].has('x')) throw new Error('Token content still contains note id');
+  if (index.noteCount !== 0) throw new Error('noteCount should be 0');
+});
 
- // Test: Backward compatibility: v2 index loads without tokenMap
- test('v2 index loads without tokenMap', () => {
-   // Create a v2 index manually (no tokenMap)
-   const v2index = { version: 2, rev: '123', lastUpdated: Date.now(), noteCount: 1, notes: [{ id: '1', content: 'Test', contentLower: 'test', tags: [], createdAt: Date.now(), updatedAt: null }] };
-   // Should not have tokenMap
-   if (v2index.tokenMap) throw new Error('v2 index should not have tokenMap');
-   // Loading via loadIndex won't change version; we just ensure structure accepted
-   const loaded = { ...v2index };
-   if (loaded.version !== 2) throw new Error('Version should remain 2');
- });
+// Test: Backward compatibility: v2 index loads without tokenMap
+test('v2 index loads without tokenMap', () => {
+  // Create a v2 index manually (no tokenMap)
+  const v2index = { version: 2, rev: '123', lastUpdated: Date.now(), noteCount: 1, notes: [{ id: '1', content: 'Test', contentLower: 'test', tags: [], createdAt: Date.now(), updatedAt: null }] };
+  // Should not have tokenMap
+  if (v2index.tokenMap) throw new Error('v2 index should not have tokenMap');
+  // Loading via loadIndex won't change version; we just ensure structure accepted
+  const loaded = { ...v2index };
+  if (loaded.version !== 2) throw new Error('Version should remain 2');
+});
 
- // Test: IndexManager marks v2 index as not fresh to trigger upgrade
- test('IndexManager treats v2 index as not fresh', () => {
-   const IndexManager = require('../src/lib/indexManager');
-   const store = new Store(testDataPath);
-   // Prepare notes
-   store.saveNotes([{ id: 'v', content: 'V2 note', tags: [], createdAt: Date.now() }]);
-   // Build a v2 index manually (remove tokenMap, set version 2)
-   const notes = store.getNotes();
-   let index = indexer.buildIndex(notes, testDataPath); // v3
-   index.version = 2; delete index.tokenMap;
-   indexer.saveIndex(index, indexPath);
-   // Load via IndexManager
-   const im = new IndexManager(store);
-   im.load();
-   if (!im.index) throw new Error('Index should load');
-   if (im.isFresh()) throw new Error('v2 index should not be considered fresh (should trigger upgrade)');
- });
+// Test: IndexManager marks v2 index as not fresh to trigger upgrade
+test('IndexManager treats v2 index as not fresh', async () => {
+  const store = new Store(testDataPath);
+  // Prepare notes
+  store.saveNotes([{ id: 'v', content: 'V2 note', tags: [], createdAt: Date.now() }]);
+  // Build a v3 index manually (then downgrade to v2)
+  const notes = store.getNotes();
+  let index = await indexer.buildIndex(notes, testDataPath); // v3
+  index.version = 2; delete index.tokenMap;
+  indexer.saveIndex(index, indexPath);
+  // Load via IndexManager
+  const im = new IndexManager(store);
+  im.load();
+  if (!im.index) throw new Error('Index should load');
+  if (im.isFresh()) throw new Error('v2 index should not be considered fresh (should trigger upgrade)');
+});
 
- // Test: Integration with Store and search simulation
-test('search using index matches expected notes', () => {
+// Test: Integration with Store and search simulation
+test('search using index matches expected notes', async () => {
   // Prepare test data
   const store = new Store(testDataPath);
   // Clear and add notes
@@ -205,7 +197,7 @@ test('search using index matches expected notes', () => {
   ]);
   // Build index
   const notes = store.getNotes();
-  const index = indexer.buildIndex(notes, testDataPath);
+  const index = await indexer.buildIndex(notes, testDataPath);
   indexer.saveIndex(index, indexPath);
   // Simulate search logic (exact)
   const query = 'meeting';
@@ -221,7 +213,7 @@ test('search using index matches expected notes', () => {
 });
 
 // Test: Fuzzy search uses precomputed contentLower
-test('fuzzy search on index respects threshold', () => {
+test('fuzzy search on index respects threshold', async () => {
   const notes = [
     { id: 'f1', content: 'Meeting', tags: [], createdAt: Date.now() },
     { id: 'f2', content: 'Meting', tags: [], createdAt: Date.now() }, // typo
@@ -229,7 +221,7 @@ test('fuzzy search on index respects threshold', () => {
   ];
   const store = new Store(testDataPath);
   store.saveNotes(notes);
-  const index = indexer.buildIndex(store.getNotes(), testDataPath);
+  const index = await indexer.buildIndex(store.getNotes(), testDataPath);
   indexer.saveIndex(index, indexPath);
   const idx = indexer.loadIndex(indexPath);
   const query = 'meeting';
@@ -247,37 +239,160 @@ test('fuzzy search on index respects threshold', () => {
 });
 
 // Test: Inverted index exact search simulation
- test('Inverted index exact search returns matching notes', () => {
-   const notes = [
-     { id: '1', content: 'Hello world', tags: ['a'], createdAt: Date.now() },
-     { id: '2', content: 'World of goo', tags: ['b'], createdAt: Date.now() },
-     { id: '3', content: 'Foo bar', tags: ['c'], createdAt: Date.now() }
-   ];
-   fs.writeFileSync(testDataPath, JSON.stringify(notes));
-   const index = indexer.buildIndex(notes, testDataPath);
-   // Simulate single-word exact search for 'world'
-   const token = 'world';
-   const ids = index.tokenMap[token] || [];
-   const noteMap = new Map(index.notes.map(n => [n.id, n]));
-   const results = ids.map(id => noteMap.get(id)).filter(Boolean);
-   if (results.length !== 2) throw new Error(`Expected 2 results for 'world', got ${results.length}`);
-   if (!results.every(n => n.content.toLowerCase().includes(token))) throw new Error('Results missing token');
- });
+test('Inverted index exact search returns matching notes', async () => {
+  const notes = [
+    { id: '1', content: 'Hello world', tags: ['a'], createdAt: Date.now() },
+    { id: '2', content: 'World of goo', tags: ['b'], createdAt: Date.now() },
+    { id: '3', content: 'Foo bar', tags: ['c'], createdAt: Date.now() }
+  ];
+  fs.writeFileSync(testDataPath, JSON.stringify(notes));
+  const index = await indexer.buildIndex(notes, testDataPath);
+  // Simulate single-word exact search for 'world'
+  const token = 'world';
+  const ids = index.tokenMap[token] || [];
+  const noteMap = new Map(index.notes.map(n => [n.id, n]));
+  const results = ids.map(id => noteMap.get(id)).filter(Boolean);
+  if (results.length !== 2) throw new Error(`Expected 2 results for 'world', got ${results.length}`);
+  if (!results.every(n => n.content.toLowerCase().includes(token))) throw new Error('Results missing token');
+});
 
- test('Inverted index returns empty for missing token', () => {
-   const notes = [{ id: '1', content: 'Hello', tags: [], createdAt: Date.now() }];
-   const index = indexer.buildIndex(notes, testDataPath);
-   const ids = index.tokenMap['nonexistent'] || [];
-   if (ids.length !== 0) throw new Error('Should be empty for missing token');
- });
+test('Inverted index returns empty for missing token', async () => {
+  const notes = [{ id: '1', content: 'Hello', tags: [], createdAt: Date.now() }];
+  const index = await indexer.buildIndex(notes, testDataPath);
+  const ids = index.tokenMap['nonexistent'] || [];
+  if (ids.length !== 0) throw new Error('Should be empty for missing token');
+});
 
-// Summary
-console.log('\n' + '='.repeat(50));
-console.log(`Indexer Tests: ${passed} passed, ${failed} failed`);
-if (failed > 0) {
-  console.log('❌ Some tests failed');
-  process.exit(1);
-} else {
-  console.log('✅ All indexer tests passed');
+// --- Incremental sync tests ---
+
+test('syncIncremental applies small changes correctly', async () => {
+  if (fs.existsSync(testDir)) { fs.rmSync(testDir, { recursive: true }); }
+  fs.mkdirSync(testDir, { recursive: true });
+
+  const initial = [];
+  for (let i = 0; i < 10; i++) {
+    initial.push({ id: `i${i}`, content: `Note ${i}`, tags: ['test'], createdAt: Date.now(), updatedAt: Date.now() });
+  }
+  fs.writeFileSync(testDataPath, JSON.stringify(initial));
+  const store = new Store(testDataPath);
+  const im = new IndexManager(store);
+  im.load();
+  await im.rebuild();
+  if (!im.isFresh()) throw new Error('Index should be fresh after rebuild');
+
+  const modified = [...initial];
+  const addedNote = { id: 'added1', content: 'Added note', tags: ['new'], createdAt: Date.now(), updatedAt: Date.now() };
+  modified.push(addedNote);
+  const editIdx = modified.findIndex(n => n.id === 'i0');
+  modified[editIdx] = { ...modified[editIdx], content: 'Edited i0', updatedAt: Date.now() };
+  const delIdx = modified.findIndex(n => n.id === 'i1');
+  modified.splice(delIdx, 1);
+
+  store.saveNotes(modified);
+
+  im.load();
+  if (im.isFresh()) throw new Error('Index should be stale after external changes');
+
+  const ok = await im.syncIncremental();
+  if (!ok) throw new Error('Incremental sync should succeed');
+  if (!im.isFresh()) throw new Error('Index should be fresh after sync');
+  const index = im.getIndex();
+  if (index.noteCount !== modified.length) throw new Error(`Count ${index.noteCount} !== expected ${modified.length}`);
+  const ids = new Set(index.notes.map(n => n.id));
+  for (const n of modified) {
+    if (!ids.has(n.id)) throw new Error(`Missing note ${n.id} in index`);
+  }
+  if (!index.tokenMap['added'] || !index.tokenMap['added'].has('added1')) throw new Error('Token for added note missing');
+});
+
+test('syncIncremental returns false when changes exceed threshold', async () => {
+  if (fs.existsSync(testDir)) { fs.rmSync(testDir, { recursive: true }); }
+  fs.mkdirSync(testDir, { recursive: true });
+  process.env.QUICK_MEMO_SYNC_THRESHOLD = '2';
+  try {
+    const initial = [];
+    for (let i = 0; i < 10; i++) {
+      initial.push({ id: `a${i}`, content: `Note ${i}`, tags: [], createdAt: Date.now(), updatedAt: Date.now() });
+    }
+    fs.writeFileSync(testDataPath, JSON.stringify(initial));
+    const store = new Store(testDataPath);
+    const im = new IndexManager(store);
+    im.load();
+    await im.rebuild();
+
+    const modified = [...initial];
+    for (let i = 0; i < 3; i++) {
+      modified.push({ id: `new${i}`, content: `New ${i}`, tags: [], createdAt: Date.now(), updatedAt: Date.now() });
+    }
+
+    store.saveNotes(modified);
+    im.load();
+
+    const ok = await im.syncIncremental();
+    if (ok) throw new Error('Incremental sync should return false when changes exceed threshold');
+    if (im.isFresh()) throw new Error('Index should still be stale after syncIncremental returns false');
+
+    await im.rebuild();
+    if (!im.isFresh()) throw new Error('Index should be fresh after rebuild');
+    if (im.getIndex().noteCount !== modified.length) throw new Error('Count mismatch after rebuild');
+  } finally {
+    delete process.env.QUICK_MEMO_SYNC_THRESHOLD;
+  }
+});
+
+test('syncIncremental handles zero changes (mtime only) and updates rev', async () => {
+  if (fs.existsSync(testDir)) { fs.rmSync(testDir, { recursive: true }); }
+  fs.mkdirSync(testDir, { recursive: true });
+
+  const initial = [];
+  for (let i = 0; i < 5; i++) {
+    initial.push({ id: `z${i}`, content: `Note ${i}`, tags: [], createdAt: Date.now(), updatedAt: Date.now() });
+  }
+  fs.writeFileSync(testDataPath, JSON.stringify(initial));
+  const store = new Store(testDataPath);
+  const im = new IndexManager(store);
+  im.load();
+  await im.rebuild(); // fresh index
+
+  // Simulate external mtime-only change (e.g., backup restore, git checkout)
+  const newTime = new Date(Date.now() + 1000);
+  fs.utimesSync(testDataPath, newTime, newTime);
+
+  im.load();
+  if (im.isFresh()) throw new Error('Index should be stale after mtime change');
+
+  const oldRev = im.getIndex().rev;
+  const ok = await im.syncIncremental();
+  if (!ok) throw new Error('syncIncremental should succeed with zero changes');
+  if (!im.isFresh()) throw new Error('Index should be fresh after zero-change sync');
+  const newRev = im.getIndex().rev;
+  if (newRev === oldRev) throw new Error('Rev should be updated');
+});
+
+async function runTests() {
+  for (const { name, fn } of testCases) {
+    try {
+      await fn();
+      console.log(`✓ ${name}`);
+      passed++;
+    } catch (e) {
+      console.log(`✗ ${name}`);
+      console.log(`  Error: ${e.message}`);
+      failed++;
+    }
+  }
+  console.log('\n' + '='.repeat(50));
+  console.log(`Indexer Tests: ${passed} passed, ${failed} failed`);
+  if (failed > 0) {
+    console.log('❌ Some tests failed');
+    process.exit(1);
+  } else {
+    console.log('✅ All indexer tests passed');
+  }
+  console.log('='.repeat(50));
 }
-console.log('='.repeat(50));
+
+runTests().catch(err => {
+  console.error('Fatal error in test runner:', err);
+  process.exit(1);
+});

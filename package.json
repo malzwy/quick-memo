@@ -1,6 +1,6 @@
 {
   "name": "quick-memo",
-  "version": "1.13.0",
+  "version": "1.13.1",
   "description": "A CLI tool for quick note taking with tags and search",
   "main": "src/index.js",
   "bin": {
@@ -28,5 +28,8 @@
   },
   "engines": {
     "node": ">=14"
+  },
+  "devDependencies": {
+    "fast-check": "^4.7.0"
   }
 }

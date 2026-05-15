@@ -6,7 +6,7 @@ module.exports = function registerUntagCommand(program) {
   program
     .command('untag <id> <tag>')
     .description('Remove a specific tag from a note')
-    .action((id, tag) => {
+    .action(async (id, tag) => {
       const trimmedTag = tag.trim();
       if (!trimmedTag) {
         error('Tag cannot be empty');
@@ -24,7 +24,7 @@ module.exports = function registerUntagCommand(program) {
         }
         const updatedNote = result;
         try {
-          indexMgr.afterEdit(updatedNote);
+          await indexMgr.afterEdit(updatedNote);
         } catch (idxErr) {
           console.warn('Failed to update search index:', idxErr.message);
         }

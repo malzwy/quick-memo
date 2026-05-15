@@ -76,14 +76,16 @@ test('FileLock: exclusive lock - second lock attempt fails', () => {
 });
 
 test('FileLock: stale lock cleanup - lock file with dead PID removed', () => {
-  // Create a lock file with a PID that definitely doesn't exist
+  // Create a lock file with a PID that definitely doesn't exist (legacy format)
   const fakePid = 999999;
   fs.writeFileSync(lockPath, String(fakePid));
   const lock = new FileLock(lockPath, { retries: 2, retryDelay: 10 });
   lock.acquire(); // should detect stale and acquire
   if (!fs.existsSync(lockPath)) throw new Error('Lock file should exist after acquire');
   const content = fs.readFileSync(lockPath, 'utf8');
-  if (content != String(process.pid)) throw new Error('Lock file should contain our PID');
+  // Modern lock format includes pid and timestamp: "${pid}-${timestamp}"
+  const pidPart = content.split('-')[0];
+  if (pidPart != String(process.pid)) throw new Error('Lock file should contain our PID (first part)');
   lock.release();
 });
 

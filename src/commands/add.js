@@ -7,7 +7,7 @@ module.exports = function registerAddCommand(program) {
   program
     .command('add <text> [tags...]')
     .description('Add a new note with optional tags')
-    .action((text, tags) => {
+    .action(async (text, tags) => {
       const trimmed = text.trim();
       if (!trimmed) {
         error('Note content cannot be empty');
@@ -27,7 +27,7 @@ module.exports = function registerAddCommand(program) {
         store.addNote(note);
         // Update search index
         try {
-          indexMgr.afterAdd(note);
+          await indexMgr.afterAdd(note);
         } catch (idxErr) {
           // Index update failures should not fail the command
           console.warn('Failed to update search index:', idxErr.message);

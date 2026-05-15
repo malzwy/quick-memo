@@ -36,6 +36,8 @@ Fuzzy search uses the inverted index to quickly narrow down candidate notes by t
 
 You can rebuild the index manually with `memo rebuild-index` if needed after external file modifications.
 
+**Automatic reconciliation:** When the index becomes stale (e.g., after manually editing the notes file, switching branches, or restoring from a backup), Quick Memo automatically attempts an incremental synchronization on the next mutating operation. Only the changed notes are processed, keeping updates fast even for large collections. If the number of changes exceeds a configurable threshold (default: 5% of total notes, minimum 200), a full rebuild is performed to ensure consistency. This behavior can be tuned via the `QUICK_MEMO_SYNC_THRESHOLD_PERCENT` and `QUICK_MEMO_SYNC_THRESHOLD` environment variables. Even when no content changes are detected (e.g., timestamp-only modifications), the index is marked fresh to avoid repeated unnecessary checks.
+
 ## 🔒 Concurrency & Data Integrity
 
 Quick Memo uses a file-based locking mechanism (`FileLock`) to prevent concurrent write corruption when multiple CLI processes access the same notes file.
@@ -259,6 +261,11 @@ memo config set delete.confirmDelete false
 
 # Unset a configuration key
 memo config unset list.detailed
+
+# Get a configuration value (useful for scripting)
+memo config get list.sortBy
+# With default fallback if key not found
+memo config get nonexistent.key --default created
 
 # Validate current configuration
 memo config validate

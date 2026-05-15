@@ -7,14 +7,14 @@ module.exports = function registerTrashCommand(program) {
   program
     .command('trash <id>')
     .description('Move note to trash (soft delete)')
-    .action((id) => {
+    .action(async (id) => {
       const store = new Store();
       const indexMgr = new IndexManager(store);
       indexMgr.load();
 
       const trashed = store.trashNote(id);
       try {
-        indexMgr.afterDelete(id);
+        await indexMgr.afterDelete(id);
       } catch (idxErr) {
         console.warn('Failed to update search index:', idxErr.message);
       }

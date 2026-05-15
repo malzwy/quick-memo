@@ -1,6 +1,10 @@
 const fs = require('fs');
 const path = require('path');
 const FileLock = require('./lock');
+const BackupManager = require('../../../shared/backup'); // shared utility for backup rotation
+
+// Number of rotating backups to keep (default 5)
+const MAX_BACKUPS = 5;
 
 class Store {
   constructor(customPath) {
@@ -20,6 +24,25 @@ class Store {
     const dir = path.dirname(this.dataPath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
+    }
+  }
+
+  // --- Backup management ---
+  /**
+   * Create a timestamped backup of the given file and rotate old backups.
+   * @private
+   */
+  _backupAndRotate(filePath) {
+    if (!fs.existsSync(filePath)) return;
+    try {
+      // Use shared backup manager for consistent rotation and age-based pruning
+      BackupManager.backupAndRotate(filePath, {
+        maxBackups: MAX_BACKUPS,
+        retentionDays: 30,
+        backupSuffix: '.bak'
+      });
+    } catch (err) {
+      console.warn(`Failed to create backup of ${filePath}: ${err.message}`);
     }
   }
 
@@ -50,9 +73,9 @@ class Store {
 
   _saveNotes(notes) {
     try {
+      // Create rotating backup of current file before overwriting
+      this._backupAndRotate(this.dataPath);
       // Atomic write: write to temp file then rename
-      // Default to compact storage (no pretty-print) for performance and smaller footprint.
-      // Set QUICK_MEMO_COMPACT=0 to disable compact and get pretty-printed JSON for debugging.
       const compact = process.env.QUICK_MEMO_COMPACT !== '0';
       const content = JSON.stringify(notes, null, compact ? null : 2);
       const tmpPath = this.dataPath + '.tmp-' + Date.now() + '.' + process.pid;
@@ -88,7 +111,8 @@ class Store {
 
   _saveTrash(trash) {
     try {
-      // Same compact handling as notes
+      // Create rotating backup of current trash file before overwriting
+      this._backupAndRotate(this.trashPath);
       const compact = process.env.QUICK_MEMO_COMPACT !== '0';
       const content = JSON.stringify(trash, null, compact ? null : 2);
       const tmpPath = this.trashPath + '.tmp-' + Date.now() + '.' + process.pid;

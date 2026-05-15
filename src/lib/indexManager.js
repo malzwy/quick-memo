@@ -15,6 +15,10 @@ class IndexManager {
    */
   load() {
     this.index = indexer.loadIndex(this.indexPath);
+    // Convert tokenMap from arrays (serialized) to Sets for efficient in-memory updates
+    if (this.index && this.index.version >= 3 && this.index.tokenMap && Object.values(this.index.tokenMap)[0] instanceof Array) {
+      this.index.tokenMap = indexer.tokenMapToSets(this.index.tokenMap);
+    }
     this.fresh = this.index && indexer.isIndexFresh(this.index, this.store.dataPath) && this.index.version >= 3;
     return this.index;
   }
@@ -41,7 +45,7 @@ class IndexManager {
    * otherwise, tries incremental sync or full rebuild.
    * @param {Object} note - The note that was added
    */
-  afterAdd(note) {
+  async afterAdd(note) {
     if (this.fresh) {
       indexer.addOrUpdateNote(this.index, note);
       this.index.noteCount = this.index.notes.length;
@@ -49,7 +53,7 @@ class IndexManager {
       this.index.lastUpdated = Date.now();
       indexer.saveIndex(this.index, this.indexPath);
     } else {
-      this.maybeReconcile();
+      await this.maybeReconcile();
     }
   }
 
@@ -59,14 +63,14 @@ class IndexManager {
    * otherwise, tries incremental sync or full rebuild.
    * @param {Object} note - The updated note
    */
-  afterEdit(note) {
+  async afterEdit(note) {
     if (this.fresh) {
       indexer.addOrUpdateNote(this.index, note);
       this.index.rev = indexer.computeRev(this.store.dataPath);
       this.index.lastUpdated = Date.now();
       indexer.saveIndex(this.index, this.indexPath);
     } else {
-      this.maybeReconcile();
+      await this.maybeReconcile();
     }
   }
 
@@ -76,7 +80,7 @@ class IndexManager {
    * otherwise, tries incremental sync or full rebuild.
    * @param {string} noteId - The ID of the deleted note
    */
-  afterDelete(noteId) {
+  async afterDelete(noteId) {
     if (this.fresh) {
       indexer.removeNote(this.index, noteId);
       this.index.noteCount = this.index.notes.length;
@@ -84,7 +88,7 @@ class IndexManager {
       this.index.lastUpdated = Date.now();
       indexer.saveIndex(this.index, this.indexPath);
     } else {
-      this.maybeReconcile();
+      await this.maybeReconcile();
     }
   }
 
@@ -92,9 +96,11 @@ class IndexManager {
    * Rebuild the entire index from all current notes.
    * This is guaranteed to produce a consistent index.
    */
-  rebuild() {
+  async rebuild() {
     const notes = this.store.getNotes();
-    this.index = indexer.buildIndex(notes, this.store.dataPath);
+    this.index = await indexer.buildIndex(notes, this.store.dataPath);
+    // Convert tokenMap from arrays (serializable form) to Sets for efficient in-memory updates
+    this.index.tokenMap = indexer.tokenMapToSets(this.index.tokenMap);
     indexer.saveIndex(this.index, this.indexPath);
     // Mark index as fresh after successful rebuild so subsequent operations use incremental updates
     this.fresh = true;
@@ -127,8 +133,21 @@ class IndexManager {
 
     const totalChanges = added.length + deleted.length + updated.length;
 
-    // Threshold: if changes exceed 5% of index size or at least 200 notes, fallback to full rebuild
-    const threshold = Math.max(200, Math.floor(this.index.noteCount * 0.05));
+    // Threshold: if changes exceed X% of index size or at least 200 notes, fallback to full rebuild.
+    // Configurable via QUICK_MEMO_SYNC_THRESHOLD_PERCENT (percentage) or QUICK_MEMO_SYNC_THRESHOLD (absolute).
+    let threshold;
+    const absolute = parseInt(process.env.QUICK_MEMO_SYNC_THRESHOLD, 10);
+    if (!isNaN(absolute) && absolute > 0) {
+      threshold = absolute;
+    } else {
+      const percent = parseInt(process.env.QUICK_MEMO_SYNC_THRESHOLD_PERCENT, 10);
+      if (!isNaN(percent) && percent > 0) {
+        threshold = Math.max(200, Math.floor(this.index.noteCount * (percent / 100)));
+      } else {
+        // Default: 5%
+        threshold = Math.max(200, Math.floor(this.index.noteCount * 0.05));
+      }
+    }
     if (totalChanges > threshold) {
       return false;
     }
@@ -150,6 +169,13 @@ class IndexManager {
       this.index.lastUpdated = Date.now();
       indexer.saveIndex(this.index, this.indexPath);
       this.fresh = true;
+    } else {
+      // No content changes detected, but index was stale (likely due to external mtime change).
+      // Mark as fresh and update rev to current to avoid repeated false staleness.
+      this.index.rev = indexer.computeRev(this.store.dataPath);
+      this.index.lastUpdated = Date.now();
+      indexer.saveIndex(this.index, this.indexPath);
+      this.fresh = true;
     }
 
     return true;
@@ -159,10 +185,10 @@ class IndexManager {
    * Ensure the index is up-to-date. If it's stale, attempt incremental sync,
    * otherwise perform full rebuild.
    */
-  maybeReconcile() {
+  async maybeReconcile() {
     if (this.fresh) return;
     if (!this.syncIncremental()) {
-      this.rebuild();
+      await this.rebuild();
     }
   }
 }

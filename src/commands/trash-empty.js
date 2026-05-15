@@ -9,7 +9,7 @@ module.exports = function registerTrashEmptyCommand(program) {
     .command('trash-empty')
     .description('Permanently delete all trashed notes')
     .option('-f, --force', 'Skip confirmation prompt')
-    .action((options) => {
+    .action(async (options) => {
       const store = new Store();
       // Load config for confirmation settings
       const config = loadConfig();
@@ -32,26 +32,27 @@ module.exports = function registerTrashEmptyCommand(program) {
         const readline = require('readline');
         const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
         const question = chalk.red('Are you sure? This cannot be undone. (y/N): ');
-        rl.question(question, (answer) => {
+        rl.question(question, async (answer) => {
           rl.close();
           if (!answer || answer.toLowerCase() !== 'y') {
             info('Empty trash cancelled');
             return;
           }
-          performEmptyTrash();
+          await performEmptyTrash();
         });
       } else {
         performEmptyTrash();
       }
 
-      function performEmptyTrash() {
+      async function performEmptyTrash() {
         store.emptyTrash();
-        // Rebuild index to ensure consistency (simplest, safe approach)
+        // Reconcile index efficiently: if stale, attempt incremental sync (which may rebuild if needed)
         try {
           const indexMgr = new IndexManager(store);
-          indexMgr.rebuild();
+          indexMgr.load();
+          await indexMgr.maybeReconcile();
         } catch (idxErr) {
-          console.warn('Failed to rebuild search index after emptying trash:', idxErr.message);
+          console.warn('Failed to reconcile search index after emptying trash:', idxErr.message);
         }
         success(`Emptyed trash: ${trash.length} note(s) permanently deleted`);
       }

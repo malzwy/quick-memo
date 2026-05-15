@@ -10,7 +10,7 @@ module.exports = function registerImportCommand(program) {
     .command('import <filePath>')
     .description('Import notes from JSON or CSV file')
     .option('-f, --force', 'Skip confirmation for duplicate handling')
-    .action((filePath, options) => {
+    .action(async (filePath, options) => {
       const store = new Store();
       if (!fs.existsSync(filePath)) {
         error(`File not found: ${filePath}`);
@@ -156,7 +156,7 @@ module.exports = function registerImportCommand(program) {
         // Rebuild index after bulk import to ensure search is up-to-date
         try {
           const indexMgr = new IndexManager(store);
-          indexMgr.rebuild();
+          await indexMgr.rebuild();
         } catch (idxErr) {
           console.warn('Failed to update search index:', idxErr.message);
         }

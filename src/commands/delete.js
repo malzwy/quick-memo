@@ -9,7 +9,7 @@ module.exports = function registerDeleteCommand(program) {
     .command('delete <id>')
     .description('Delete a note by ID')
     .option('-f, --force', 'Skip confirmation prompt')
-    .action((id, options) => {
+    .action(async (id, options) => {
       const store = new Store();
       // Load config for confirmation settings
       const config = loadConfig();
@@ -31,19 +31,19 @@ module.exports = function registerDeleteCommand(program) {
         const readline = require('readline');
         const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
         const question = chalk.red('Are you sure? (y/N): ');
-        rl.question(question, (answer) => {
+        rl.question(question, async (answer) => {
           rl.close();
           if (!answer || answer.toLowerCase() !== 'y') {
             info('Deletion cancelled');
             return;
           }
-          performDelete();
+          await performDelete();
         });
       } else {
         performDelete();
       }
 
-      function performDelete() {
+      async function performDelete() {
         const storeObj = store; // closure
         const indexMgr = new IndexManager(storeObj);
         indexMgr.load();
@@ -51,7 +51,7 @@ module.exports = function registerDeleteCommand(program) {
         try {
           storeObj.saveNotes(newNotes);
           try {
-            indexMgr.afterDelete(id);
+            await indexMgr.afterDelete(id);
           } catch (idxErr) {
             console.warn('Failed to update search index:', idxErr.message);
           }

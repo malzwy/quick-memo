@@ -1,0 +1,32 @@
+[
+  {
+    "noteCount": 100,
+    "indexSize": 44698,
+    "durationMs": 0.992862,
+    "notesPerMs": 100.71893173472245
+  },
+  {
+    "noteCount": 1000,
+    "indexSize": 461039,
+    "durationMs": 6.549423,
+    "notesPerMs": 152.68520600975077
+  },
+  {
+    "noteCount": 10000,
+    "indexSize": 4769340,
+    "durationMs": 40.511903,
+    "notesPerMs": 246.84103336246636
+  },
+  {
+    "noteCount": 50000,
+    "indexSize": 24561336,
+    "durationMs": 227.318223,
+    "notesPerMs": 219.9559689501884
+  },
+  {
+    "noteCount": 100000,
+    "indexSize": 49301341,
+    "durationMs": 437.260698,
+    "notesPerMs": 228.6965200791954
+  }
+]

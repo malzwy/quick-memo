@@ -7,7 +7,7 @@ module.exports = function registerEditCommand(program) {
     .command('edit <id> <new-text>')
     .description('Edit a note\'s content')
     .argument('[new-tags...]', 'New tags (optional, replaces existing)')
-    .action((id, newText, newTags) => {
+    .action(async (id, newText, newTags) => {
       const trimmed = newText.trim();
       if (!trimmed) {
         error('Note content cannot be empty');
@@ -20,7 +20,7 @@ module.exports = function registerEditCommand(program) {
         const updated = store.editNote(id, trimmed, newTags);
         // Update index
         try {
-          indexMgr.afterEdit(updated);
+          await indexMgr.afterEdit(updated);
         } catch (idxErr) {
           console.warn('Failed to update search index:', idxErr.message);
         }

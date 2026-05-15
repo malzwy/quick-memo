@@ -7,7 +7,7 @@ module.exports = function registerRestoreCommand(program) {
   program
     .command('restore <path>')
     .description('Restore notes from backup file')
-    .action((backupPath) => {
+    .action(async (backupPath) => {
       if (!fs.existsSync(backupPath)) {
         error(`Backup file not found: ${backupPath}`);
         process.exit(1);
@@ -23,7 +23,7 @@ module.exports = function registerRestoreCommand(program) {
         store.replaceAll(notes);
         try {
           const indexMgr = new IndexManager(store);
-          indexMgr.rebuild();
+          await indexMgr.rebuild();
         } catch (idxErr) {
           console.warn('Failed to rebuild search index:', idxErr.message);
         }

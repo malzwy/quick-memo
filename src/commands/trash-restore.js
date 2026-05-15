@@ -7,13 +7,13 @@ module.exports = function registerTrashRestoreCommand(program) {
   program
     .command('trash-restore <id>')
     .description('Restore note from trash')
-    .action((id) => {
+    .action(async (id) => {
       const store = new Store();
       const indexMgr = new IndexManager(store);
       indexMgr.load();
       const restored = store.restoreNote(id);
       try {
-        indexMgr.afterAdd(restored);
+        await indexMgr.afterAdd(restored);
       } catch (idxErr) {
         console.warn('Failed to update search index:', idxErr.message);
       }

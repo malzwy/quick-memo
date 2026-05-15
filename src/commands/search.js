@@ -1,6 +1,6 @@
 const Store = require('../lib/store');
 const stringSimilarity = require('string-similarity');
-const { info } = require('../lib/helpers');
+const { info, formatNote } = require('../lib/helpers');
 const chalk = require('chalk');
 const indexer = require('../lib/indexer');
 
@@ -17,12 +17,33 @@ module.exports = function registerSearchCommand(program) {
     .option('-t, --tag <tag>', 'Filter by tag (comma-separated for multiple tags)')
     .option('-f, --fuzzy', 'Enable fuzzy matching for approximate matches')
     .option('--fast', 'Use fast token-based similarity (experimental; requires indexed tokens)')
+    .option('--limit <number>', 'Maximum number of results to return')
+    .option('--offset <number>', 'Number of results to skip (default: 0)')
     .option('--threshold <number>', 'Similarity threshold for fuzzy search (0-1, default: 0.3)', '0.3')
     .action((query, options) => {
       const trimmed = query.trim();
       if (!trimmed) {
         console.error(chalk.red('✗ Search query cannot be empty'));
         process.exit(1);
+      }
+      // Parse pagination options
+      let offset = 0;
+      let limit = null;
+      if (options.offset !== undefined) {
+        const parsed = parseInt(options.offset, 10);
+        if (isNaN(parsed) || parsed < 0) {
+          console.error(chalk.red('✗ Offset must be a non-negative integer'));
+          process.exit(1);
+        }
+        offset = parsed;
+      }
+      if (options.limit !== undefined) {
+        const parsed = parseInt(options.limit, 10);
+        if (isNaN(parsed) || parsed <= 0) {
+          console.error(chalk.red('✗ Limit must be a positive integer'));
+          process.exit(1);
+        }
+        limit = parsed;
       }
       const store = new Store();
       // Try to use index for faster search
@@ -131,32 +152,75 @@ module.exports = function registerSearchCommand(program) {
         }
       }
 
-      if (results.length === 0) {
-        if (options.json) {
-          console.log('[]');
+      // Capture total count before pagination
+      const totalCount = results.length;
+
+      // Apply pagination
+      let paginatedResults = results;
+      let paginatedScored = null;
+      if (offset > 0 || limit !== null) {
+        const start = offset;
+        const end = limit !== null ? offset + limit : undefined;
+        if (options.fuzzy && scoredResults) {
+          paginatedScored = scoredResults.slice(start, end);
+          paginatedResults = paginatedScored.map(item => item.note);
         } else {
-          info('No matching notes found.');
+          paginatedResults = results.slice(start, end);
         }
-        return;
+      } else {
+        if (options.fuzzy) paginatedScored = scoredResults;
       }
 
+      // Handle empty display set
+      if (paginatedResults.length === 0) {
+        if (totalCount === 0) {
+          if (options.json) {
+            console.log('[]');
+          } else {
+            info('No matching notes found.');
+          }
+          return;
+        } else {
+          // Offset beyond available results
+          if (options.json) {
+            console.log('[]');
+          } else {
+            info(`No results to display (offset ${offset} beyond total ${totalCount} results).`);
+          }
+          return;
+        }
+      }
+
+      // JSON output
       if (options.json) {
-        console.log(JSON.stringify(results, null, 2));
+        console.log(JSON.stringify(paginatedResults, null, 2));
         return;
       }
 
+      // Human-readable output
       if (options.fuzzy) {
-        // Use precomputed scores from scoredResults
         const fastAvailable = notes.length > 0 && notes[0].tokens;
         const fastLabel = options.fast && fastAvailable ? 'fast ' : '';
-        info(`Found ${results.length} note(s) (fuzzy${fastLabel ? ' ' + fastLabel : ''}, threshold: ${threshold}):`);
-        scoredResults.forEach(({ note, score }) => {
+        let msg = `Found ${totalCount} note(s) (fuzzy${fastLabel ? ' ' + fastLabel : ''}, threshold: ${threshold})`;
+        if (offset > 0 || limit !== null) {
+          const shownStart = offset + 1;
+          const shownEnd = offset + paginatedResults.length;
+          msg += ` [showing ${shownStart}-${shownEnd} of ${totalCount}]`;
+        }
+        info(msg + ':');
+        paginatedScored.forEach(({ note, score }) => {
           const percentage = Math.round(score * 100);
           console.log(`${formatNote(note)} ${chalk.gray(`[${percentage}%]`)}`);
         });
       } else {
-        info(`Found ${results.length} note(s):`);
-        results.forEach(note => {
+        let msg = `Found ${totalCount} note(s)`;
+        if (offset > 0 || limit !== null) {
+          const shownStart = offset + 1;
+          const shownEnd = offset + paginatedResults.length;
+          msg += ` [showing ${shownStart}-${shownEnd} of ${totalCount}]`;
+        }
+        info(msg + ':');
+        paginatedResults.forEach(note => {
           console.log(formatNote(note));
         });
       }

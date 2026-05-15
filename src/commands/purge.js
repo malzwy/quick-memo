@@ -9,7 +9,7 @@ module.exports = function registerPurgeCommand(program) {
     .command('purge <id>')
     .description('Permanently delete a single note from trash')
     .option('-f, --force', 'Skip confirmation prompt')
-    .action((id, options) => {
+    .action(async (id, options) => {
       const store = new Store();
       // Load config for confirmation settings
       const config = loadConfig();
@@ -29,24 +29,24 @@ module.exports = function registerPurgeCommand(program) {
         const readline = require('readline');
         const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
         const question = chalk.red('Are you sure? This cannot be undone. (y/N): ');
-        rl.question(question, (answer) => {
+        rl.question(question, async (answer) => {
           rl.close();
           if (!answer || answer.toLowerCase() !== 'y') {
             info('Purge cancelled');
             return;
           }
-            performPurge();
+            await performPurge();
         });
       } else {
         performPurge();
       }
 
-      function performPurge() {
+      async function performPurge() {
         const indexMgr = new IndexManager(store);
         indexMgr.load();
         store.permanentlyDelete(id);
         try {
-          indexMgr.afterDelete(id);
+          await indexMgr.afterDelete(id);
         } catch (idxErr) {
           console.warn('Failed to update search index:', idxErr.message);
         }

@@ -549,8 +549,42 @@ if (afterTag.length !== 2) {
 }
 console.log('  ✓ Fuzzy + tag filtering OK');
 
-// Test 22: untagNote - successful removal
-console.log('\nTest 22: Untag (Store method)');
+// Test 22: Pagination logic
+console.log('\nTest 22: Pagination (offset/limit)');
+// Create a larger set of notes with known order
+const pageTestDir = path.join(os.tmpdir(), 'quick-memo-pagination-test');
+const pageDataPath = path.join(pageTestDir, 'notes.json');
+// Clean previous page test
+if (fs.existsSync(pageTestDir)) {
+  fs.rmSync(pageTestDir, { recursive: true });
+}
+fs.mkdirSync(pageTestDir, { recursive: true });
+const pageStore = new Store(pageDataPath);
+const pageNotes = [];
+for (let i = 0; i < 20; i++) {
+  pageNotes.push({ id: generateId(), content: `Note ${i+1}`, tags: [], createdAt: Date.now() + i });
+}
+pageNotes.forEach(n => pageStore.addNote(n));
+const allPageNotes = pageStore.getNotes();
+// Test offset and limit manually
+const offset = 5;
+const limit = 5;
+const paged = allPageNotes.slice(offset, offset + limit);
+if (paged.length !== limit) {
+  throw new Error(`Pagination should return ${limit} notes`);
+}
+if (paged[0].content !== 'Note 6') {
+  throw new Error('Pagination offset incorrect');
+}
+// Test offset beyond range
+const beyond = allPageNotes.slice(100, 110);
+if (beyond.length !== 0) {
+  throw new Error('Offset beyond range should return empty');
+}
+console.log('  ✓ Pagination OK');
+
+// Test 23: untagNote - successful removal
+console.log('\nTest 23: Untag (Store method)');
 const notesForUntag = store.getNotes();
 const noteWithTags = notesForUntag.find(n => n.tags.length > 0);
 if (!noteWithTags) {
@@ -573,8 +607,8 @@ if (ungotNote.tags.length !== noteWithTags.tags.length - 1) {
 }
 console.log('  ✓ Untag success');
 
-// Test 23: untagNote - tag not present
-console.log('\nTest 23: Untag non-existent tag');
+// Test 24: untagNote - tag not present
+console.log('\nTest 24: Untag non-existent tag');
 const result2 = store.untagNote(noteId, 'nonexistenttag');
 if (result2 !== false) {
   throw new Error('untagNote should return false for non-existent tag');
@@ -582,7 +616,7 @@ if (result2 !== false) {
 console.log('  ✓ Untag returns false for missing tag');
 
 // Test 24: untagNote - note not found
-console.log('\nTest 24: Untag non-existent note');
+console.log('\nTest 25: Untag non-existent note');
 let threw = false;
 try {
   store.untagNote('nonexistentid', 'sometag');
@@ -603,5 +637,5 @@ console.log('\n' + '='.repeat(50));
 console.log('✅ All tests passed!');
 console.log(`Total notes in test store: ${store.getNotes().length}`);
 console.log('Tags present:', Object.keys(tagsCount).join(', ') || 'none');
-console.log(`Test coverage: 24 test categories (added untag functionality and Store error handling)`);
+console.log(`Test coverage: 25 test categories (added pagination and untag functionality)`);
 console.log('='.repeat(50));

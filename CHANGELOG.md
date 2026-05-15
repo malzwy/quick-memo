@@ -31,18 +31,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [1.13.1] - 2026-05-15
+
+### Added
+- **Config get command**: `memo config get <key>` retrieves individual configuration values for scripting, with optional `--default` fallback and dot notation support.
+- **Incremental index synchronization**: When index is stale, IndexManager attempts to sync changes incrementally instead of full rebuild, dramatically improving performance after partial updates or crashes.
+- **Expanded test coverage**: Added comprehensive tests for incremental sync behavior under small changes, threshold exceed, and zero-change scenarios.
 
 ### Fixed
-- **IndexManager rebuild**: correctly sets `fresh` flag after rebuilding, enabling incremental updates for subsequent operations. Previously, rebuild left `fresh=false`, causing every add/edit/delete to rebuild the entire index, resulting in O(N²) performance for batch operations.
-
-### Performance
-- **Compact JSON storage** by default for notes, trash, and configuration files. This reduces file sizes (~18% smaller) and improves I/O throughput (~5% faster writes). Environment variable `QUICK_MEMO_COMPACT=0` restores pretty-printed JSON for debugging.
+- **IndexManager tokenMap conversion**: After rebuild, tokenMap is now correctly converted to Sets for efficient incremental updates, preventing runtime errors.
+- **Shared backup require path**: Fixed module resolution (`../../../shared/backup`) that could cause failures in some environments.
+- **Config validation**: fixed missing `chalk` import causing `ReferenceError` during `config validate`.
 
 ### Improved
-- Documentation updated to reflect default compact storage and configuration options.
+- **trash-empty performance**: Now uses `maybeReconcile()` instead of unconditional full rebuild, reducing unnecessary work.
+- **Incremental sync zero-change handling**: Properly updates rev and marks index fresh when file modification time changes but content remains identical.
+- **Documentation**: Updated README with performance characteristics and locking details; updated CHANGELOG for clarity.
 
 ---
+
+(Previous content: see [1.13.1] and earlier)---
 
 ## [1.12.0] - 2026-04-29
 
