@@ -34,6 +34,8 @@ For **single-word exact searches**, the inverted index allows O(1) token lookup 
 
 Fuzzy search uses the inverted index to quickly narrow down candidate notes by token overlap, then applies string-similarity on a much smaller subset.
 
+**Fuzzy search result caching** (since v1.14.0): Results are cached on disk to make repeated fuzzy queries instantaneous. The cache is automatically invalidated when the search index changes. Use `--no-cache` to bypass the cache. Cache size and TTL are configurable via `QUICK_MEMO_CACHE_SIZE` (default 100) and `QUICK_MEMO_CACHE_TTL` (default 5 minutes).
+
 You can rebuild the index manually with `memo rebuild-index` if needed after external file modifications.
 
 **Automatic reconciliation:** When the index becomes stale (e.g., after manually editing the notes file, switching branches, or restoring from a backup), Quick Memo automatically attempts an incremental synchronization on the next mutating operation. Only the changed notes are processed, keeping updates fast even for large collections. If the number of changes exceeds a configurable threshold (default: 5% of total notes, minimum 200), a full rebuild is performed to ensure consistency. This behavior can be tuned via the `QUICK_MEMO_SYNC_THRESHOLD_PERCENT` and `QUICK_MEMO_SYNC_THRESHOLD` environment variables. Even when no content changes are detected (e.g., timestamp-only modifications), the index is marked fresh to avoid repeated unnecessary checks.

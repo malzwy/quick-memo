@@ -50,7 +50,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-(Previous content: see [1.13.1] and earlier)---
+(Previous content: see [1.13.1] and earlier)
+
+## [1.14.0] - 2026-05-16
+
+### Added
+- **Persistent fuzzy search result cache**: Fuzzy searches now cache results on disk (LRU, configurable size/ttl) to make repeated queries near-instantaneous. Cache is automatically invalidated when the notes index changes. Use `--no-cache` to bypass. Cache location: `~/.quick-memo/fuzzy-cache.json`. Tunable via `QUICK_MEMO_CACHE_SIZE` (default 100) and `QUICK_MEMO_CACHE_TTL` (default 5 minutes).
+- **Comprehensive fuzzy cache test suite**: Added robust tests covering cache behavior, TTL expiry, LRU eviction, disk persistence, and key normalization, significantly improving reliability.
+
+### Improved
+- Config module: Added in-memory caching with mtime validation to reduce disk I/O for frequent CLI invocations. Cache invalidates automatically on file changes, improving performance for tools that read config repeatedly.
+
+---
+
+(Previous content: see [1.13.1] and earlier)
 
 ## [1.12.0] - 2026-04-29
 
