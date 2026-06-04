@@ -32,6 +32,7 @@ const Store = require('../src/lib/store');
 const IndexManager = require('../src/lib/indexManager');
 const indexer = require('../src/lib/indexer');
 const { generateId } = require('../src/lib/utils');
+const { computeScore } = require('../src/lib/scoring');
 
 // Helper: create a store pointing to test directory
 function createStore() {
@@ -259,6 +260,41 @@ runProperty('TokenMap entries are accurate for all tokens', () => {
       }
     }
   }));
+});
+
+// Property 7: Fast scoring ranking guarantees
+runProperty('Fast scoring ranking guarantees', () => {
+  // Generate arbitrary query tokens and two note token sets
+  const tokenArb = fc.string({ minLength: 1, maxLength: 10 });
+  fc.assert(fc.property(
+    fc.array(tokenArb, { minSize: 1, maxSize: 5 }), // query tokens
+    fc.array(tokenArb), // note A tokens
+    fc.array(tokenArb), // note B tokens
+    (qArr, aArr, bArr) => {
+      const queryTokens = new Set(qArr);
+      const scoreA = computeScore(queryTokens, aArr);
+      const scoreB = computeScore(queryTokens, bArr);
+      // Compute coverage for each
+      const intersectionA = new Set([...queryTokens].filter(t => aArr.includes(t))).size;
+      const coverageA = intersectionA / queryTokens.size;
+      const intersectionB = new Set([...queryTokens].filter(t => bArr.includes(t))).size;
+      const coverageB = intersectionB / queryTokens.size;
+      // If coverageA > coverageB, then scoreA must be > scoreB
+      if (coverageA > coverageB) {
+        if (!(scoreA > scoreB)) {
+          throw new Error(`Coverage ${coverageA} should dominate ${coverageB}, but scores: ${scoreA} vs ${scoreB}`);
+        }
+      }
+      // If coverage equal and token counts differ, shorter note should score higher
+      if (coverageA === coverageB && aArr.length !== bArr.length) {
+        const shorter = aArr.length < bArr.length;
+        const dominated = shorter ? scoreB >= scoreA : scoreA >= scoreB;
+        if (dominated) {
+          throw new Error(`Equal coverage: shorter note (len=${shorter ? aArr.length : bArr.length}) should score higher than longer (len=${shorter ? bArr.length : aArr.length}). Got scores ${scoreA} vs ${scoreB}`);
+        }
+      }
+    }
+  ));
 });
 
 // Summary

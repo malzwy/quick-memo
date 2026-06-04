@@ -309,6 +309,10 @@ test('syncIncremental returns false when changes exceed threshold', async () => 
   if (fs.existsSync(testDir)) { fs.rmSync(testDir, { recursive: true }); }
   fs.mkdirSync(testDir, { recursive: true });
   process.env.QUICK_MEMO_SYNC_THRESHOLD = '2';
+  // Use isolated config path to avoid cache from other tests
+  const isolatedConfigPath = path.join(testDir, 'isolated-config.json');
+  process.env.QUICK_MEMO_CONFIG = isolatedConfigPath;
+  // Ensure the file does not exist, so defaults (with env var) are used.
   try {
     const initial = [];
     for (let i = 0; i < 10; i++) {

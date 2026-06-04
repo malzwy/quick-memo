@@ -206,6 +206,32 @@ test('Concurrent writes: multiple processes can add notes without corruption', (
   if (!notes.some(n => n.content.includes('child 2'))) throw new Error('Missing child 2 note');
 });
 
+// Test: FSYNC environment variable support
+(function() {
+  const originalFsyncEnv = process.env.QUICK_MEMO_FSYNC;
+  try {
+    process.env.QUICK_MEMO_FSYNC = '1';
+    const store = new Store(testDataPath);
+    const note = { id: generateId(), content: 'Fsync test', tags: [], createdAt: Date.now() };
+    // This should not throw even if fsync fails on this platform
+    store.addNote(note);
+    // Also test trash
+    store.trashNote(note.id);
+    console.log('✓ Store fsync path executes without error');
+    passed++;
+  } catch (err) {
+    console.log('✗ Store fsync path threw an error');
+    console.log(`  Error: ${err.message}`);
+    failed++;
+  } finally {
+    if (originalFsyncEnv !== undefined) {
+      process.env.QUICK_MEMO_FSYNC = originalFsyncEnv;
+    } else {
+      delete process.env.QUICK_MEMO_FSYNC;
+    }
+  }
+})();
+
 // Summary
 console.log('\n' + '='.repeat(50));
 console.log(`Atomic Tests: ${passed} passed, ${failed} failed`);

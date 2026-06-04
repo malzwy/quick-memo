@@ -15,7 +15,7 @@ module.exports = function registerAddCommand(program) {
       }
       const store = new Store();
       const indexMgr = new IndexManager(store);
-      indexMgr.load();
+      await indexMgr.ensureReady();
 
       const note = {
         id: generateId(),

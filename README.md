@@ -38,7 +38,9 @@ Fuzzy search uses the inverted index to quickly narrow down candidate notes by t
 
 You can rebuild the index manually with `memo rebuild-index` if needed after external file modifications.
 
-**Automatic reconciliation:** When the index becomes stale (e.g., after manually editing the notes file, switching branches, or restoring from a backup), Quick Memo automatically attempts an incremental synchronization on the next mutating operation. Only the changed notes are processed, keeping updates fast even for large collections. If the number of changes exceeds a configurable threshold (default: 5% of total notes, minimum 200), a full rebuild is performed to ensure consistency. This behavior can be tuned via the `QUICK_MEMO_SYNC_THRESHOLD_PERCENT` and `QUICK_MEMO_SYNC_THRESHOLD` environment variables. Even when no content changes are detected (e.g., timestamp-only modifications), the index is marked fresh to avoid repeated unnecessary checks.
+**Automatic reconciliation with user feedback:** When the index becomes stale (e.g., after manually editing the notes file, switching branches, or restoring from a backup), Quick Memo automatically attempts an incremental synchronization on the next mutating operation, showing a progress message and completing quickly. Only the changed notes are processed, keeping updates fast even for large collections. If the number of changes exceeds a configurable threshold (default: 5% of total notes, minimum 200), a full rebuild is performed to ensure consistency. Even when no content changes are detected (e.g., timestamp-only modifications), the index is marked fresh to avoid repeated unnecessary checks.
+
+**Index upgrades:** Older index versions (e.g., v2 or earlier) are automatically upgraded to the current v3 format on first use, with a clear upgrade message. This includes automatic rebuild when performing a search (not just mutating commands), ensuring seamless upgrades without manual intervention.
 
 ## 🔒 Concurrency & Data Integrity
 
@@ -149,6 +151,7 @@ memo search "important" --tag work,urgent
 memo search "meeting" --fuzzy
 
 # Fast fuzzy search using token-based similarity (much faster on large datasets)
+# With improved scoring: notes covering all query tokens rank higher, shorter notes preferred.
 memo search "meeting" --fuzzy --fast
 
 # Adjust fuzzy threshold (0-1, default 0.3)
@@ -436,6 +439,8 @@ Configuration example:
 ```
 
 Command-line flags always override configuration file settings.
+
+**Performance note**: Configuration is cached in-memory to minimize disk I/O. Changes made via `memo config` commands are automatically reflected due to cache invalidation.
 
 ### 🔄 File Recovery
 

@@ -10,7 +10,7 @@ module.exports = function registerTrashRestoreCommand(program) {
     .action(async (id) => {
       const store = new Store();
       const indexMgr = new IndexManager(store);
-      indexMgr.load();
+      await indexMgr.ensureReady();
       const restored = store.restoreNote(id);
       try {
         await indexMgr.afterAdd(restored);

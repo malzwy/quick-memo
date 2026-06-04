@@ -1,5 +1,8 @@
 const indexer = require('./indexer');
 const path = require('path');
+const chalk = require('chalk');
+const ora = require('ora').default;
+const config = require('./config');
 
 class IndexManager {
   constructor(store) {
@@ -134,20 +137,20 @@ class IndexManager {
     const totalChanges = added.length + deleted.length + updated.length;
 
     // Threshold: if changes exceed X% of index size or at least 200 notes, fallback to full rebuild.
-    // Configurable via QUICK_MEMO_SYNC_THRESHOLD_PERCENT (percentage) or QUICK_MEMO_SYNC_THRESHOLD (absolute).
+    // Configurable via config.sync.thresholdPercent (percentage) or config.sync.thresholdAbsolute (absolute).
+    const config = require('./config');
+    const syncConfig = config.getConfigKey('sync') || {};
+    const thresholdPercent = syncConfig.thresholdPercent != null ? syncConfig.thresholdPercent : 5;
+    const thresholdAbsolute = syncConfig.thresholdAbsolute != null ? syncConfig.thresholdAbsolute : 0;
+
     let threshold;
-    const absolute = parseInt(process.env.QUICK_MEMO_SYNC_THRESHOLD, 10);
-    if (!isNaN(absolute) && absolute > 0) {
-      threshold = absolute;
+    if (thresholdAbsolute > 0) {
+      threshold = thresholdAbsolute;
     } else {
-      const percent = parseInt(process.env.QUICK_MEMO_SYNC_THRESHOLD_PERCENT, 10);
-      if (!isNaN(percent) && percent > 0) {
-        threshold = Math.max(200, Math.floor(this.index.noteCount * (percent / 100)));
-      } else {
-        // Default: 5%
-        threshold = Math.max(200, Math.floor(this.index.noteCount * 0.05));
-      }
+      // Use percent-based threshold with a floor of 200 changes
+      threshold = Math.max(200, Math.floor(this.index.noteCount * (thresholdPercent / 100)));
     }
+
     if (totalChanges > threshold) {
       return false;
     }
@@ -190,6 +193,54 @@ class IndexManager {
     if (!this.syncIncremental()) {
       await this.rebuild();
     }
+  }
+
+  /**
+   * Ensure the index is ready for use: load and reconcile if stale or outdated.
+   * Provides user-friendly progress messages during upgrade/rebuild.
+   * @param {boolean} showMessage - Whether to print status messages (default true)
+   * @returns {Promise<Object|null>} The fresh index
+   */
+  async ensureReady(showMessage = true) {
+    this.load();
+    if (this.fresh) {
+      return this.index;
+    }
+
+    // Determine reason
+    const isMissing = !this.index;
+    const isUpgrade = this.index && this.index.version < 3;
+
+    let message;
+    if (isMissing) {
+      message = 'Building initial search index';
+    } else if (isUpgrade) {
+      message = `Upgrading search index (from v${this.index.version})`;
+    } else {
+      message = 'Refreshing search index';
+    }
+
+    let spinner;
+    if (showMessage) {
+      spinner = ora({
+        text: message,
+        spinner: 'dots'
+      }).start();
+    }
+
+    try {
+      await this.maybeReconcile();
+      if (spinner) {
+        spinner.succeed(isMissing ? 'Index built' : isUpgrade ? 'Index upgraded' : 'Index refreshed');
+      }
+    } catch (err) {
+      if (spinner) {
+        spinner.fail('Index operation failed');
+      }
+      throw err;
+    }
+
+    return this.index;
   }
 }
 

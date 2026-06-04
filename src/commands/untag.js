@@ -14,7 +14,7 @@ module.exports = function registerUntagCommand(program) {
       }
       const store = new Store();
       const indexMgr = new IndexManager(store);
-      indexMgr.load();
+      await indexMgr.ensureReady();
 
       try {
         const result = store.untagNote(id, trimmedTag);

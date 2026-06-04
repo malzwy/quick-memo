@@ -5,12 +5,7 @@
  */
 
 const { parentPort } = require('worker_threads');
-
-// Import tokenize only (we don't need full indexer to avoid circular)
-function tokenize(text) {
-  const words = text.toLowerCase().match(/\b\w+\b/g) || [];
-  return Array.from(new Set(words));
-}
+const { tokenize } = require('./text-utils');
 
 parentPort.on('message', (notes) => {
   const noteEntries = [];

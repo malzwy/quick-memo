@@ -3,12 +3,10 @@ const stringSimilarity = require('string-similarity');
 const { info, formatNote } = require('../lib/helpers');
 const chalk = require('chalk');
 const indexer = require('../lib/indexer');
+const IndexManager = require('../lib/indexManager');
 const FuzzyCache = require('../lib/fuzzyCache');
-
-function tokenize(text) {
-  const words = text.toLowerCase().match(/\b\w+\b/g) || [];
-  return Array.from(new Set(words));
-}
+const { tokenize } = require('../lib/text-utils');
+const { computeScore } = require('../lib/scoring');
 
 // Initialize fuzzy cache singleton (process-local)
 const fuzzyCache = new FuzzyCache({
@@ -28,7 +26,7 @@ module.exports = function registerSearchCommand(program) {
     .option('--limit <number>', 'Maximum number of results to return')
     .option('--offset <number>', 'Number of results to skip (default: 0)')
     .option('--threshold <number>', 'Similarity threshold for fuzzy search (0-1, default: 0.3)', '0.3')
-    .action((query, options) => {
+    .action(async (query, options) => {
       const trimmed = query.trim();
       if (!trimmed) {
         console.error(chalk.red('✗ Search query cannot be empty'));
@@ -54,20 +52,21 @@ module.exports = function registerSearchCommand(program) {
         limit = parsed;
       }
       const store = new Store();
-      // Try to use index for faster search
-      let notes = null;
-      const indexPath = indexer.getIndexPath();
-      const index = indexer.loadIndex(indexPath);
-      if (index && !indexer.needsRebuild(store.dataPath, index)) {
-        notes = indexer.getIndexedNotes(index);
-      } else {
-        notes = store.getNotes();
-      }
+      // Ensure index is ready (build/upgrade if needed)
+      const indexMgr = new IndexManager(store);
+      await indexMgr.ensureReady(!options.json);
+      const index = indexMgr.index;
+      let notes = index.notes;
       let results = [];
       let threshold = null;
 
       const queryLower = trimmed.toLowerCase();
       let scoredResults = []; // keep score information for fuzzy
+
+      // Auto-enable fast token-based mode for large datasets (optimization)
+      if (options.fuzzy && !options.fast && index && index.version >= 3 && index.tokenMap && notes.length > 500) {
+        options.fast = true;
+      }
 
       // Fuzzy search result caching for repeated queries
       let cacheHit = false;
@@ -133,14 +132,10 @@ module.exports = function registerSearchCommand(program) {
                 const contentLower = note.contentLower || note.content.toLowerCase();
                 const similarity = stringSimilarity.compareTwoStrings(queryLower, contentLower);
                 return { note, score: similarity };
+              } else {
+                const score = computeScore(queryTokens, note.tokens);
+                return { note, score };
               }
-              let intersection = 0;
-              for (const token of note.tokens) {
-                if (queryTokens.has(token)) intersection++;
-              }
-              const union = queryTokens.size + note.tokens.length - intersection;
-              const jaccard = union === 0 ? 0 : intersection / union;
-              return { note, score: jaccard };
             });
           } else {
             // Traditional string similarity on candidate set

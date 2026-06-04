@@ -5,7 +5,28 @@ All notable changes to Quick Memo will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.13.0] - 2026-05-03
+## [Unreleased]
+
+### Added
+- **Shared text-utils module**: Extracted tokenization and scoring utilities into `src/lib/text-utils.js` for reuse across indexer and search components, reducing code duplication and improving maintainability.
+- **Automatic index upgrade and refresh with user feedback**: The index is now automatically built, upgraded, or refreshed before commands that rely on it, with clear progress messages. This ensures seamless upgrades from older index versions and immediate availability after external changes. The `IndexManager.ensureReady()` method coordinates this behavior across all commands (add, edit, delete, untag, trash, restore, purge, import, and search). Index version upgrades (from <3 to v3) are now performed automatically with a notification, removing the need for manual `rebuild-index` after upgrades.
+- **Property-based test suite for fast scoring consistency**: Added `tests/property.test.js` using `fast-check` to validate the fast token-based fuzzy search scoring algorithm. Ensures that notes with full query token coverage are always ranked higher than those with partial coverage, and that among full-coverage notes, shorter notes are preferred. These tests guard against regressions in relevance ranking.
+- **Optional fsync durability**: Set `QUICK_MEMO_FSYNC=1` to force `fsync()` on data and directory writes for extra persistence assurance against power loss/crashes. This adds negligible overhead when disabled (default).
+
+### Improved
+- **Fast fuzzy search scoring**: The `--fast` token-based fuzzy algorithm now uses a hybrid metric combining query token coverage (primary) and note compactness (secondary). This yields more relevant rankings—notes containing all query tokens are prioritized, with shorter notes breaking ties—while maintaining O(candidate) performance on large datasets.
+- **Code quality**: Eliminated duplicate `tokenize()` implementations; now shared across indexer and search via `text-utils` module.
+
+### Improved
+- **Shared FileLock verbose logging**: Added `ENVBUDDY_LOCK_VERBOSE=1` (and similar) to log lock contention details, helping diagnose concurrency issues.
+- Test coverage expanded with fsync environment variable test.
+
+## [1.15.0] - 2026-05-19
+
+### Added
+- **Automatic fast mode**: For large datasets (>500 notes), fuzzy search now automatically enables token-based candidate selection (`--fast`) when the index supports it, significantly improving performance without user intervention. Can still be overridden manually.
+
+## [1.14.0] - 2026-05-16
 
 ### Added
 - ⚡ **Fast fuzzy search** with `--fast` flag using token-based Jaccard similarity

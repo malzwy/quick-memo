@@ -55,6 +55,26 @@ function validateConfigKey(key, value) {
     return null;
   }
 
+  // Validate sync group settings
+  if (group === 'sync') {
+    switch (setting) {
+      case 'thresholdPercent':
+        if (typeof value !== 'number' || value < 1 || value > 100) {
+          return `sync.thresholdPercent must be a number between 1 and 100`;
+        }
+        return null;
+      case 'thresholdAbsolute':
+        // Allow 0 (meaning not set) or a positive number
+        if (typeof value !== 'number' || (value < 0 || value > 10000)) {
+          return `sync.thresholdAbsolute must be a number between 0 and 10000 (0 means use percent)`;
+        }
+        return null;
+      default:
+        // Unknown setting under sync - allow for forward compatibility
+        return null;
+    }
+  }
+
   // Unknown top-level group (e.g., future feature) - allow permissively
   return null;
 }

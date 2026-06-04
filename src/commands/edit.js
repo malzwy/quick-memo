@@ -15,7 +15,7 @@ module.exports = function registerEditCommand(program) {
       }
       const store = new Store();
       const indexMgr = new IndexManager(store);
-      indexMgr.load();
+      await indexMgr.ensureReady();
       try {
         const updated = store.editNote(id, trimmed, newTags);
         // Update index

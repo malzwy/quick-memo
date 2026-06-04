@@ -46,7 +46,7 @@ module.exports = function registerDeleteCommand(program) {
       async function performDelete() {
         const storeObj = store; // closure
         const indexMgr = new IndexManager(storeObj);
-        indexMgr.load();
+        await indexMgr.ensureReady();
         const newNotes = notes.filter(n => n.id !== id);
         try {
           storeObj.saveNotes(newNotes);

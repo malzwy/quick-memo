@@ -43,7 +43,7 @@ module.exports = function registerPurgeCommand(program) {
 
       async function performPurge() {
         const indexMgr = new IndexManager(store);
-        indexMgr.load();
+        await indexMgr.ensureReady();
         store.permanentlyDelete(id);
         try {
           await indexMgr.afterDelete(id);

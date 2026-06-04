@@ -58,6 +58,23 @@ module.exports = function registerConfigCommand(program) {
         return error('Only single-level dot notation supported (e.g., list.sortBy)');
       }
 
+      // Special handling for sync settings (ensure they're in the right format)
+      if (fullKey === 'sync.thresholdPercent' || fullKey === 'sync.thresholdAbsolute') {
+        const syncConfig = config.sync || {};
+        if (typeof syncConfig.thresholdPercent !== 'number' && fullKey === 'sync.thresholdPercent') {
+          syncConfig.thresholdPercent = parsedValue;
+        }
+        if (typeof syncConfig.thresholdAbsolute !== 'number' && fullKey === 'sync.thresholdAbsolute') {
+          syncConfig.thresholdAbsolute = parsedValue;
+        }
+        // Ensure sync object exists and has both values
+        if (!config.sync) {
+          config.sync = {};
+        }
+        config.sync = syncConfig;
+        fullKey = 'sync';
+      }
+
       // Validate the configuration value before saving
       if (fullKey) {
         const validationErr = validateConfigKey(fullKey, parsedValue);
@@ -119,6 +136,10 @@ module.exports = function registerConfigCommand(program) {
       if (parts.length === 2) {
         const [group, setting] = parts;
         value = config[group]?.[setting];
+        // Special handling for sync settings (return as object)
+        if (group === 'sync' && setting === undefined) {
+          value = config.sync || {};
+        }
       } else if (parts.length === 1) {
         value = config[key];
       } else {

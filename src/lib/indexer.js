@@ -39,12 +39,7 @@ function needsRebuild(notesPath, index) {
   return currentRev !== index.rev;
 }
 
-function tokenize(text) {
-  // Simple word tokenization: split on non-word characters, filter empty
-  const words = text.toLowerCase().match(/\b\w+\b/g) || [];
-  // Return distinct tokens as array (no duplicates)
-  return Array.from(new Set(words));
-}
+const { tokenize } = require('./text-utils');
 
 // Convert tokenMap with Set values to plain object with arrays for serialization
 function tokenMapToArrays(tokenMap) {
@@ -101,7 +96,8 @@ function buildIndexSequential(notes, notesPath) {
 async function buildIndex(notes, notesPath) {
   const parallelThreshold = parseInt(process.env.QUICK_MEMO_PARALLEL_THRESHOLD, 10) || 1000;
   const cpuCount = os.cpus().length;
-  if (notes.length >= parallelThreshold && cpuCount > 1) {
+  const useParallel = notes.length >= parallelThreshold && cpuCount > 1;
+  if (useParallel) {
     // Determine number of workers (min(cpuCount, ceil(notes/500)))
     const numWorkers = Math.min(cpuCount, Math.max(2, Math.ceil(notes.length / 500)));
     const chunkSize = Math.ceil(notes.length / numWorkers);
@@ -128,11 +124,15 @@ async function buildIndex(notes, notesPath) {
     // Merge partial results
     const noteEntries = [];
     const tokenMap = Object.create(null);
-    for (const { noteEntries: partNotes, tokenMap: partTokenMap } of results) {
-      noteEntries.push(...partNotes);
-      for (const [token, ids] of Object.entries(partTokenMap)) {
-        if (!tokenMap[token]) tokenMap[token] = [];
-        tokenMap[token].push(...ids);
+    for (const result of results) {
+      const partNotes = result.noteEntries;
+      const partTokenMap = result.tokenMap;
+      if (partNotes) noteEntries.push(...partNotes);
+      if (partTokenMap) {
+        for (const [token, ids] of Object.entries(partTokenMap)) {
+          if (!tokenMap[token]) tokenMap[token] = [];
+          tokenMap[token].push(...ids);
+        }
       }
     }
     return {

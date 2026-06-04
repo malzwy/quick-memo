@@ -10,7 +10,7 @@ module.exports = function registerTrashCommand(program) {
     .action(async (id) => {
       const store = new Store();
       const indexMgr = new IndexManager(store);
-      indexMgr.load();
+      await indexMgr.ensureReady();
 
       const trashed = store.trashNote(id);
       try {

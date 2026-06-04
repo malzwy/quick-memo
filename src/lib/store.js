@@ -80,6 +80,22 @@ class Store {
       const content = JSON.stringify(notes, null, compact ? null : 2);
       const tmpPath = this.dataPath + '.tmp-' + Date.now() + '.' + process.pid;
       fs.writeFileSync(tmpPath, content, 'utf8');
+      // Optional durability: fsync temp file and directory to ensure persistence
+      if (process.env.QUICK_MEMO_FSYNC === '1' || process.env.QUICK_MEMO_FSYNC === 'true') {
+        try {
+          const fd = fs.openSync(tmpPath, 'r');
+          fs.fsyncSync(fd);
+          fs.closeSync(fd);
+          // Sync the directory to persist the rename operation
+          const dir = path.dirname(this.dataPath);
+          const dirFd = fs.openSync(dir, 'r');
+          fs.fsyncSync(dirFd);
+          fs.closeSync(dirFd);
+        } catch (fsyncErr) {
+          // fsync may not be supported on all platforms; warn but continue
+          console.warn(`Warning: fsync failed: ${fsyncErr.message}`);
+        }
+      }
       fs.renameSync(tmpPath, this.dataPath);
     } catch (e) {
       console.error(`Failed to save notes to ${this.dataPath}: ${e.message}`);
@@ -117,6 +133,20 @@ class Store {
       const content = JSON.stringify(trash, null, compact ? null : 2);
       const tmpPath = this.trashPath + '.tmp-' + Date.now() + '.' + process.pid;
       fs.writeFileSync(tmpPath, content, 'utf8');
+      // Optional durability: fsync temp file and directory
+      if (process.env.QUICK_MEMO_FSYNC === '1' || process.env.QUICK_MEMO_FSYNC === 'true') {
+        try {
+          const fd = fs.openSync(tmpPath, 'r');
+          fs.fsyncSync(fd);
+          fs.closeSync(fd);
+          const dir = path.dirname(this.trashPath);
+          const dirFd = fs.openSync(dir, 'r');
+          fs.fsyncSync(dirFd);
+          fs.closeSync(dirFd);
+        } catch (fsyncErr) {
+          console.warn(`Warning: fsync failed: ${fsyncErr.message}`);
+        }
+      }
       fs.renameSync(tmpPath, this.trashPath);
     } catch (e) {
       console.error(`Failed to save trash to ${this.trashPath}: ${e.message}`);
