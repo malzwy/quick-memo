@@ -61,6 +61,14 @@ function getDefaultConfig() {
       thresholdPercent: syncThresholdPercent,
       thresholdAbsolute: syncThresholdAbsolute,
     },
+    // Proactive Security Masking (AGENTS.md pattern)
+    masking: {
+      autoMask: true,          // Mask sensitive content by default
+      maskChar: '*',           // Character to use for masking
+      showStart: 3,            // Number of characters to show at start
+      showEnd: 3,              // Number of characters to show at end
+      customPatterns: []       // User-defined regex patterns as strings
+    }
   };
 }
 
@@ -225,6 +233,25 @@ function resetConfig() {
   return defaults;
 }
 
+/**
+ * Get effective command configuration by merging defaults, file config, and CLI options.
+ * @param {Object} config - Full loaded config object
+ * @param {string} commandName - Command name (e.g., 'list', 'delete')
+ * @param {Object} options - Commander options object from CLI
+ * @returns {Object} Effective configuration for the command
+ */
+function getCommandConfig(config, commandName, options) {
+  const defaults = getDefaultConfig();
+  const cmdDefaults = defaults[commandName] || {};
+  const fileConfig = config[commandName] || {};
+  const effective = { ...cmdDefaults, ...fileConfig };
+  // Override with CLI options (all options from commander are considered provided)
+  for (const [key, value] of Object.entries(options)) {
+    effective[key] = value;
+  }
+  return effective;
+}
+
 module.exports = {
   loadConfig,
   saveConfig,
@@ -233,4 +260,5 @@ module.exports = {
   getConfigKey,
   setConfigKey,
   resetConfig,
+  getCommandConfig,
 };

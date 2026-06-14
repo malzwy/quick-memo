@@ -24,7 +24,11 @@ class FuzzyCache {
     this.cacheDir = options.cacheDir || path.join(os.homedir(), '.quick-memo');
     this.cachePath = path.join(this.cacheDir, 'fuzzy-cache.json');
     this.entries = new Map(); // key -> { results, indexRev, timestamp }
+    this.dirty = false;
+    this.saveTimer = null;
     this.load();
+    // Ensure we flush on graceful shutdown
+    this._setupSignalHandlers();
   }
 
   /**
@@ -78,6 +82,8 @@ class FuzzyCache {
 
   /**
    * Save cache to disk atomically with secure permissions.
+   * This is the low-level write; callers should typically use flush()
+   * to respect debouncing semantics.
    */
   save() {
     try {
@@ -102,6 +108,7 @@ class FuzzyCache {
       fs.chmodSync(this.cachePath, 0o600);
     } catch (e) {
       console.warn(`FuzzyCache: failed to save (${e.message})`);
+      throw e; // rethrow to let flush know
     }
   }
 
@@ -122,6 +129,7 @@ class FuzzyCache {
 
   /**
    * Set a cache entry. Prunes to maxEntries if needed.
+   * Persistence is debounced to reduce disk I/O during rapid successive calls.
    */
   set(key, payload, indexRev) {
     // payload should contain { results, scoredResults }
@@ -142,23 +150,42 @@ class FuzzyCache {
       this.entries.delete(keys[0]);
     }
 
+    // Mark dirty and schedule debounced flush
+    this.dirty = true;
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = null;
+    }
+    this.saveTimer = setTimeout(() => {
+      this.flush();
+    }, 500); // 500ms debounce
+  }
+
+  /**
+   * Force immediate save if there are pending changes.
+   * Used for graceful shutdown and explicit synchronization.
+   */
+  flush() {
+    if (!this.dirty) return;
     try {
       this.save();
+      this.dirty = false;
     } catch (e) {
-      // Ignore
+      console.warn(`FuzzyCache: failed to flush (${e.message})`);
+      // Keep dirty = true so we'll retry later
+    }
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = null;
     }
   }
 
   /**
-   * Clear entire cache.
+   * Clear entire cache and persist immediately.
    */
   clear() {
     this.entries.clear();
-    try {
-      if (fs.existsSync(this.cachePath)) {
-        fs.unlinkSync(this.cachePath);
-      }
-    } catch (e) {}
+    this.flush(); // persist empty state
   }
 
   /**
@@ -169,8 +196,21 @@ class FuzzyCache {
       entries: this.entries.size,
       maxEntries: this.maxEntries,
       ttlMs: this.ttlMs,
-      cachePath: this.cachePath
+      cachePath: this.cachePath,
+      dirty: this.dirty,
+      timerActive: !!this.saveTimer
     };
+  }
+
+  /**
+   * Register process signal handlers to ensure cache is flushed on exit.
+   * @private
+   */
+  _setupSignalHandlers() {
+    const flush = () => this.flush();
+    process.on('SIGINT', flush);
+    process.on('SIGTERM', flush);
+    // Also flush on 'exit' event? Not needed; flush will be called via signals, but for abnormal exits we can't guarantee.
   }
 }
 

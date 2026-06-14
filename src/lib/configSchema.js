@@ -75,6 +75,42 @@ function validateConfigKey(key, value) {
     }
   }
 
+  // Validate masking group
+  if (group === 'masking') {
+    switch (setting) {
+      case 'autoMask':
+        if (typeof value !== 'boolean') {
+          return `masking.autoMask must be a boolean (true/false)`;
+        }
+        return null;
+      case 'maskChar':
+        if (typeof value !== 'string' || value.length !== 1) {
+          return `masking.maskChar must be a single character string`;
+        }
+        return null;
+      case 'showStart':
+      case 'showEnd':
+        if (typeof value !== 'number' || value < 0 || value > 10) {
+          return `${group}.${setting} must be a number between 0 and 10`;
+        }
+        return null;
+      case 'customPatterns':
+        if (!Array.isArray(value)) {
+          return `masking.customPatterns must be an array of strings`;
+        }
+        // Validate each pattern is string
+        for (let i = 0; i < value.length; i++) {
+          if (typeof value[i] !== 'string') {
+            return `masking.customPatterns[${i}] must be a string`;
+          }
+        }
+        return null;
+      default:
+        // Unknown setting - allow for forward compatibility
+        return null;
+    }
+  }
+
   // Unknown top-level group (e.g., future feature) - allow permissively
   return null;
 }

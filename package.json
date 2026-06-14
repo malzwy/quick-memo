@@ -1,13 +1,13 @@
 {
   "name": "quick-memo",
-  "version": "1.14.0",
+  "version": "1.16.0",
   "description": "A CLI tool for quick note taking with tags and search",
   "main": "src/index.js",
   "bin": {
     "memo": "./bin/memo"
   },
   "scripts": {
-    "test": "node tests/test.js && node tests/test-indexer.js && node tests/test-atomic.js && node tests/test-fuzzyCache.js && node tests/test-config-mtime.js",
+    "test": "node tests/test.js && node tests/test-indexer.js && node tests/test-atomic.js && node tests/test-fuzzyCache.js && node tests/test-config-mtime.js && node tests/test-config-validation.js && node tests/test-backup-rotation.js && node tests/test-config-diff.js && node tests/test-list.js && node tests/test-text-utils.js && node tests/property.test.js",
     "start": "node bin/memo",
     "benchmark": "node benchmarks/search-benchmark.js",
     "benchmark:index": "node benchmarks/index-rebuild.js",
@@ -32,6 +32,7 @@
     "node": ">=14"
   },
   "devDependencies": {
-    "fast-check": "^4.7.0"
+    "fast-check": "^4.7.0",
+    "nyc": "^18.0.0"
   }
 }

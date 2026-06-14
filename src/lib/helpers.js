@@ -16,11 +16,15 @@ function info(msg) {
   console.log(chalk.blue('ℹ ' + msg));
 }
 
-function formatNote(note, detailed = false) {
+function formatNote(note, detailed = false, masker = null, unmasked = false) {
+  let content = note.content;
+  if (masker && !unmasked) {
+    content = masker.maskText(content);
+  }
   const date = new Date(note.createdAt).toLocaleString();
   const dateStr = detailed ? ` (${date})` : '';
   const tags = chalk.gray(note.tags.join(', '));
-  return `[${chalk.cyan(note.id)}] ${note.content} ${tags}${dateStr}`;
+  return `[${chalk.cyan(note.id)}] ${content} ${tags}${dateStr}`;
 }
 
 module.exports = {

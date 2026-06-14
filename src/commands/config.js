@@ -199,4 +199,102 @@ module.exports = function registerConfigCommand(program) {
       console.log();
       process.exit(1);
     });
+
+  // Diff configuration against defaults or another config file
+  configCommand
+    .command('diff [otherConfigPath]')
+    .description('Show differences between current configuration and defaults (or another configuration file)')
+    .option('--json', 'Output in JSON format')
+    .action((otherConfigPath, options) => {
+      const { loadConfig, getDefaultConfig } = require('../lib/config');
+      const currentConfig = loadConfig();
+
+      let otherConfig;
+      if (otherConfigPath) {
+        if (!fs.existsSync(otherConfigPath)) {
+          return error(`Config file not found: ${otherConfigPath}`);
+        }
+        try {
+          const data = fs.readFileSync(otherConfigPath, 'utf8');
+          otherConfig = JSON.parse(data);
+        } catch (e) {
+          return error(`Failed to parse config file: ${e.message}`);
+        }
+      } else {
+        otherConfig = getDefaultConfig();
+      }
+
+      // Flatten configs into dot-keyed maps
+      const flatten = (obj, prefix = '') => {
+        const result = {};
+        for (const [key, value] of Object.entries(obj)) {
+          const fullKey = prefix ? `${prefix}.${key}` : key;
+          if (value && typeof value === 'object' && !Array.isArray(value)) {
+            Object.assign(result, flatten(value, fullKey));
+          } else {
+            result[fullKey] = value;
+          }
+        }
+        return result;
+      };
+
+      const flatCurrent = flatten(currentConfig);
+      const flatOther = flatten(otherConfig);
+
+      // Compute differences
+      const added = [];   // in current but not in other
+      const removed = []; // in other but not in current
+      const changed = []; // in both but different
+      // Use deep equality to avoid false positives for objects/arrays
+      const deepEqual = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+      // Check all keys in current
+      for (const key of Object.keys(flatCurrent)) {
+        if (!(key in flatOther)) {
+          added.push({ key, value: flatCurrent[key] });
+        } else {
+          const currentVal = flatCurrent[key];
+          const otherVal = flatOther[key];
+          if (!deepEqual(currentVal, otherVal)) {
+            changed.push({ key, from: otherVal, to: currentVal });
+          }
+        }
+      }
+
+      // Check for keys only in other
+      for (const key of Object.keys(flatOther)) {
+        if (!(key in flatCurrent)) {
+          removed.push({ key, value: flatOther[key] });
+        }
+      }
+
+      // Output
+      if (options.json) {
+        console.log(JSON.stringify({ added, removed, changed }, null, 2));
+      } else {
+        let output = '';
+        if (added.length) {
+          output += chalk.green('Added (custom):\n');
+          for (const { key, value } of added) {
+            output += `  + ${key} = ${JSON.stringify(value)}\n`;
+          }
+        }
+        if (removed.length) {
+          output += chalk.red('Removed (no longer used):\n');
+          for (const { key, value } of removed) {
+            output += `  - ${key} = ${JSON.stringify(value)}\n`;
+          }
+        }
+        if (changed.length) {
+          output += chalk.yellow('Changed:\n');
+          for (const { key, from, to } of changed) {
+            output += `  ! ${key}: ${JSON.stringify(from)} → ${JSON.stringify(to)}\n`;
+          }
+        }
+        if (!added.length && !removed.length && !changed.length) {
+          output = 'Configuration matches defaults exactly.';
+        }
+        console.log(output.trim());
+      }
+    });
 };

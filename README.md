@@ -36,11 +36,23 @@ Fuzzy search uses the inverted index to quickly narrow down candidate notes by t
 
 **Fuzzy search result caching** (since v1.14.0): Results are cached on disk to make repeated fuzzy queries instantaneous. The cache is automatically invalidated when the search index changes. Use `--no-cache` to bypass the cache. Cache size and TTL are configurable via `QUICK_MEMO_CACHE_SIZE` (default 100) and `QUICK_MEMO_CACHE_TTL` (default 5 minutes).
 
+- **Debounced persistence**: Cache writes are coalesced using a 500ms debounce timer, dramatically reducing I/O during rapid incremental searches.
+
 You can rebuild the index manually with `memo rebuild-index` if needed after external file modifications.
 
 **Automatic reconciliation with user feedback:** When the index becomes stale (e.g., after manually editing the notes file, switching branches, or restoring from a backup), Quick Memo automatically attempts an incremental synchronization on the next mutating operation, showing a progress message and completing quickly. Only the changed notes are processed, keeping updates fast even for large collections. If the number of changes exceeds a configurable threshold (default: 5% of total notes, minimum 200), a full rebuild is performed to ensure consistency. Even when no content changes are detected (e.g., timestamp-only modifications), the index is marked fresh to avoid repeated unnecessary checks.
 
 **Index upgrades:** Older index versions (e.g., v2 or earlier) are automatically upgraded to the current v3 format on first use, with a clear upgrade message. This includes automatic rebuild when performing a search (not just mutating commands), ensuring seamless upgrades without manual intervention.
+
+### Recent Performance Optimizations
+
+- **noteMap caching**: The note lookup map used by the inverted index is now cached in memory by `IndexManager`. This eliminates O(n) map reconstruction on every search operation, providing instant note retrieval for subsequent searches. The cache is lazily invalidated after any index mutation (add/edit/delete/sync), ensuring consistency while maximizing read performance.
+- **Incremental sync O(n²) fix**: The incremental synchronization algorithm now uses a `Map` for O(1) note lookups during reconciliation, reducing time complexity from O(c·n) to O(c+n) where `c` is the number of changed notes and `n` is the total notes count. This dramatically speeds up index updates after small changes on large datasets (e.g., 10K+ notes).
+
+These optimizations are particularly impactful for:
+- Repeated fuzzy searches (the cache keeps noteMap ready)
+- Incremental syncs after adding/editing a few notes among many (e.g., 10 changes in a 10K-note collection)
+- Workflows with frequent search operations
 
 ## 🔒 Concurrency & Data Integrity
 
@@ -274,6 +286,9 @@ memo config get nonexistent.key --default created
 
 # Validate current configuration
 memo config validate
+
+# Show differences between current configuration and defaults (or another config file)
+memo config diff [otherConfigPath] [--json]
 ```
 
 Supported configuration keys:

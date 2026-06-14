@@ -142,6 +142,29 @@ if (keyTag1 !== keyTag2) {
 }
 console.log('  ✓ Tag order normalization works');
 
+// Test 9: Debounced persistence - state management
+console.log('\nTest 9: Debounce state');
+const cache9 = new FuzzyCache({ cacheDir: testDir });
+// Initially clean
+let stats0 = cache9.stats();
+if (stats0.dirty || stats0.timerActive) throw new Error('Initially dirty/timerActive should be false');
+// After one set
+cache9.set('a', { results: [], scoredResults: [] }, 'rev');
+let stats1 = cache9.stats();
+if (!stats1.dirty) throw new Error('dirty should be true after set');
+if (!stats1.timerActive) throw new Error('timerActive should be true after set');
+// After second set, dirty remains true, timerActive remains true (only one timer)
+cache9.set('b', { results: [], scoredResults: [] }, 'rev');
+let stats2 = cache9.stats();
+if (!stats2.dirty) throw new Error('dirty should remain true');
+if (!stats2.timerActive) throw new Error('timerActive should remain true');
+// Manual flush clears dirty and timer
+cache9.flush();
+let stats3 = cache9.stats();
+if (stats3.dirty) throw new Error('dirty should be false after flush');
+if (stats3.timerActive) throw new Error('timerActive should be false after flush');
+console.log('  ✓ Debounce state transitions correct');
+
 // Summary
 console.log('\n' + '='.repeat(50));
 console.log('✅ All Fuzzy Cache tests passed!');

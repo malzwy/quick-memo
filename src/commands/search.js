@@ -26,6 +26,7 @@ module.exports = function registerSearchCommand(program) {
     .option('--limit <number>', 'Maximum number of results to return')
     .option('--offset <number>', 'Number of results to skip (default: 0)')
     .option('--threshold <number>', 'Similarity threshold for fuzzy search (0-1, default: 0.3)', '0.3')
+    .option('--unmasked', 'Show sensitive values without masking')
     .action(async (query, options) => {
       const trimmed = query.trim();
       if (!trimmed) {
@@ -52,6 +53,17 @@ module.exports = function registerSearchCommand(program) {
         limit = parsed;
       }
       const store = new Store();
+      // Load config for masking
+      const { loadConfig } = require('../lib/config');
+      const config = loadConfig();
+      const maskingEnabled = (config.masking && config.masking.autoMask) !== false;
+      const shouldMask = maskingEnabled && !options.unmasked;
+      let masker = null;
+      if (shouldMask) {
+        const { Masker } = require('../lib/masker');
+        masker = new Masker(config);
+      }
+
       // Ensure index is ready (build/upgrade if needed)
       const indexMgr = new IndexManager(store);
       await indexMgr.ensureReady(!options.json);
@@ -89,8 +101,8 @@ module.exports = function registerSearchCommand(program) {
           const token = queryLower;
           const ids = index.tokenMap[token];
           if (ids) {
-            // Build note map for fast lookup
-            const noteMap = new Map(index.notes.map(n => [n.id, n]));
+            // Use cached note map for fast lookup
+            const noteMap = indexMgr.getNoteMap();
             results = ids.map(id => noteMap.get(id)).filter(Boolean);
           } else {
             results = [];
@@ -117,7 +129,7 @@ module.exports = function registerSearchCommand(program) {
                 }
               }
               if (candidateIds.size > 0) {
-                const noteMap = new Map(index.notes.map(n => [n.id, n]));
+                const noteMap = indexMgr.getNoteMap();
                 candidateNotes = Array.from(candidateIds).map(id => noteMap.get(id)).filter(Boolean);
               }
             }
@@ -220,7 +232,14 @@ module.exports = function registerSearchCommand(program) {
 
       // JSON output
       if (options.json) {
-        console.log(JSON.stringify(paginatedResults, null, 2));
+        let outputNotes = paginatedResults;
+        if (shouldMask) {
+          outputNotes = paginatedResults.map(note => ({
+            ...note,
+            content: masker.maskText(note.content)
+          }));
+        }
+        console.log(JSON.stringify(outputNotes, null, 2));
         return;
       }
 
@@ -237,7 +256,7 @@ module.exports = function registerSearchCommand(program) {
         info(msg + ':');
         paginatedScored.forEach(({ note, score }) => {
           const percentage = Math.round(score * 100);
-          console.log(`${formatNote(note)} ${chalk.gray(`[${percentage}%]`)}`);
+          console.log(formatNote(note, false, shouldMask ? masker : null, options.unmasked) + ` ${chalk.gray(`[${percentage}%]`)}`);
         });
       } else {
         let msg = `Found ${totalCount} note(s)`;
@@ -248,7 +267,7 @@ module.exports = function registerSearchCommand(program) {
         }
         info(msg + ':');
         paginatedResults.forEach(note => {
-          console.log(formatNote(note));
+          console.log(formatNote(note, false, shouldMask ? masker : null, options.unmasked));
         });
       }
     });

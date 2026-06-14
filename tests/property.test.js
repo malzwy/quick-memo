@@ -76,38 +76,41 @@ console.log('\n🧪 Quick Memo Property-Based Test Suite\n');
 let passed = 0;
 let failed = 0;
 
-function runProperty(name, runner) {
+async function runProperty(name, runner) {
   try {
-    resetTestDir(); // Ensure isolation
-    runner();
+    resetTestDir();
+    await runner();
     console.log(`✓ ${name}`);
     passed++;
   } catch (err) {
     console.log(`✗ ${name}`);
     console.log(`  Error: ${err.message}`);
+    if (err.cause) console.log(`  Cause: ${err.cause.message || err.cause}`);
     if (err.details) console.log(`  Details: ${JSON.stringify(err.details)}`);
     failed++;
   }
 }
 
+// Collect all property test promises
+const testPromises = [];
+
 // Property 1: Index bijection
-runProperty('Index contains exactly the notes provided (bijection)', () => {
-  fc.assert(fc.property(notesArb, (notes) => {
-    const index = indexer.buildIndex(notes, testDataPath);
+testPromises.push(runProperty('Index contains exactly the notes provided (bijection)', async () => {
+  await fc.assert(fc.asyncProperty(notesArb, async (notes) => {
+    const index = await indexer.buildIndex(notes, testDataPath);
     if (index.notes.length !== notes.length) throw new Error('Length mismatch');
     const noteIds = new Set(notes.map(n => n.id));
     const indexIds = new Set(index.notes.map(n => n.id));
     for (const id of indexIds) if (!noteIds.has(id)) throw new Error(`Unknown ID: ${id}`);
     for (const id of noteIds) if (!indexIds.has(id)) throw new Error(`Missing ID: ${id}`);
   }));
-});
+}));
 
 // Property 2: Token map consistency
-runProperty('TokenMap correctly maps tokens to note IDs', () => {
-  fc.assert(fc.property(notesArb, (notes) => {
-    const index = indexer.buildIndex(notes, testDataPath);
-
-    // For each note that has tokens, verify each token's ID list includes the note
+testPromises.push(runProperty('TokenMap correctly maps tokens to note IDs', async () => {
+  await fc.assert(fc.asyncProperty(notesArb, async (notes) => {
+    const index = await indexer.buildIndex(notes, testDataPath);
+    // Forward mapping: every token in a note must map to that note
     for (const note of index.notes) {
       if (note.tokens.length === 0) continue;
       for (const token of note.tokens) {
@@ -115,28 +118,26 @@ runProperty('TokenMap correctly maps tokens to note IDs', () => {
         if (!index.tokenMap[token].includes(note.id)) throw new Error(`Token ${token} lacks note ${note.id}`);
       }
     }
-
-    // For each token in tokenMap, all referenced IDs must exist in notes
+    // Reverse mapping: every token entry must reference existing notes
     for (const token of Object.keys(index.tokenMap)) {
       for (const id of index.tokenMap[token]) {
-        const exists = index.notes.some(n => n.id === id);
-        if (!exists) throw new Error(`Token ${token} references missing ID ${id}`);
+        if (!index.notes.some(n => n.id === id)) throw new Error(`Token ${token} references missing note ${id}`);
       }
     }
   }));
-});
+}));
 
 // Property 3: Index rebuild after external changes
-runProperty('Rebuild after external modification produces consistent index', () => {
-  fc.assert(fc.property(notesArb, (notes) => {
+testPromises.push(runProperty('Rebuild after external modification produces consistent index', async () => {
+  await fc.assert(fc.asyncProperty(notesArb, async (notes) => {
     if (notes.length === 0) return;
     fs.writeFileSync(testDataPath, JSON.stringify(notes));
     const store = createStore();
     const indexMgr = new IndexManager(store);
     indexMgr.load();
-    indexMgr.rebuild();
+    await indexMgr.rebuild();
 
-    // Create modified version: edit some, add some (don't delete all)
+    // Create modified version: edit some, add some
     const modified = JSON.parse(JSON.stringify(notes));
     if (modified.length > 0) {
       const editCount = Math.min(3, modified.length);
@@ -145,7 +146,6 @@ runProperty('Rebuild after external modification produces consistent index', () 
         modified[i].updatedAt = Date.now();
       }
     }
-    // Add a couple new notes
     for (let i = 0; i < 2; i++) {
       modified.push({
         id: generateUniqueId(),
@@ -158,92 +158,114 @@ runProperty('Rebuild after external modification produces consistent index', () 
 
     store.saveNotes(modified);
     indexMgr.load();
-    indexMgr.rebuild();
+    await indexMgr.rebuild();
     const index = indexMgr.getIndex();
 
     if (index.notes.length !== modified.length) throw new Error('Count mismatch after rebuild');
     const ids = new Set(index.notes.map(n => n.id));
     for (const n of modified) if (!ids.has(n.id)) throw new Error(`Missing note ${n.id}`);
   }));
-});
+}));
 
 // Property 4: replaceAll atomicity
-runProperty('replaceAll completely replaces notes atomically', () => {
-  fc.assert(fc.property(notesArb, notesArb, (initial, replacement) => {
+testPromises.push(runProperty('replaceAll completely replaces notes atomically', () => {
+  return fc.assert(fc.property(notesArb, notesArb, (initial, replacement) => {
     const store = createStore();
     store.replaceAll(initial);
     let after = store.getNotes();
     if (after.length !== initial.length) throw new Error('Initial replace failed');
-
     store.replaceAll(replacement);
     after = store.getNotes();
     if (after.length !== replacement.length) throw new Error('Replace length mismatch');
     const ids = new Set(after.map(n => n.id));
     for (const n of replacement) if (!ids.has(n.id)) throw new Error(`Missing note ${n.id}`);
   }));
-});
+}));
 
 // Property 5: IndexManager after* operations consistency
-runProperty('IndexManager after* operations keep index consistent', () => {
-  fc.assert(fc.property(notesArb, (initialNotes) => {
+testPromises.push(runProperty('IndexManager after* operations keep index consistent', async () => {
+  await fc.assert(fc.asyncProperty(notesArb, async (initialNotes) => {
     if (initialNotes.length === 0) return;
     fs.writeFileSync(testDataPath, JSON.stringify(initialNotes));
     const store = createStore();
     const indexMgr = new IndexManager(store);
     indexMgr.load();
-    indexMgr.rebuild();
+    await indexMgr.rebuild();
     let index = indexMgr.getIndex();
     if (index.notes.length !== initialNotes.length) throw new Error('Initial index mismatch');
 
-    // Perform sequence of adds, edits, deletes
+    // Perform a sequence of adds, edits, deletes
     const notesCopy = [...initialNotes];
     const numOps = Math.min(notesCopy.length, 10);
-    generatedIds.clear();
+    // Note: we intentionally do NOT clear generatedIds here to prevent ID collisions with initial notes.
 
     for (let i = 0; i < numOps; i++) {
-      const opType = Math.floor(Math.random() * 3);
-      if (opType === 0) {
-        // Add
-        const newNote = {
-          id: generateUniqueId(),
-          content: 'New ' + Date.now(),
-          tags: ['new'],
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        };
-        store.addNote(newNote);
-        indexMgr.afterAdd(newNote);
-        notesCopy.push(newNote);
-      } else if (opType === 1 && notesCopy.length > 0) {
-        // Edit
-        const idx = Math.floor(Math.random() * notesCopy.length);
-        const note = notesCopy[idx];
-        const edited = { ...note, content: 'Edit ' + Date.now(), updatedAt: Date.now() };
-        store.editNote(note.id, edited.content, edited.tags);
-        indexMgr.afterEdit(edited);
-        notesCopy[idx] = edited;
-      } else if (notesCopy.length > 0) {
-        // Delete
-        const idx = Math.floor(Math.random() * notesCopy.length);
-        const note = notesCopy[idx];
-        store.deleteNote(note.id);
-        indexMgr.afterDelete(note.id);
-        notesCopy.splice(idx, 1);
+      try {
+        const opType = Math.floor(Math.random() * 3);
+        let currentNoteId = null;
+        if (opType === 0) {
+          // Add
+          console.log('[Debug] Adding new note');
+          const newNote = {
+            id: generateUniqueId(),
+            content: 'New ' + Date.now(),
+            tags: ['new'],
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          };
+          currentNoteId = newNote.id;
+          store.addNote(newNote);
+          await indexMgr.afterAdd(newNote);
+          notesCopy.push(newNote);
+        } else if (opType === 1 && notesCopy.length > 0) {
+          // Edit
+          const idx = Math.floor(Math.random() * notesCopy.length);
+          const note = notesCopy[idx];
+          currentNoteId = note.id;
+          console.log(`[Debug] Editing note ${note.id}`);
+          const edited = { ...note, content: 'Edit ' + Date.now(), updatedAt: Date.now() };
+          store.editNote(note.id, edited.content, edited.tags);
+          await indexMgr.afterEdit(edited);
+          notesCopy[idx] = edited;
+        } else if (notesCopy.length > 0) {
+          // Delete
+          const idx = Math.floor(Math.random() * notesCopy.length);
+          const note = notesCopy[idx];
+          currentNoteId = note.id;
+          console.log(`[Debug] Deleting note ${note.id}`);
+          store.deleteNote(note.id);
+          await indexMgr.afterDelete(note.id);
+          notesCopy.splice(idx, 1);
+        }
+      } catch (e) {
+        // Capture state for diagnosis
+        const fileNotes = fs.readFileSync(testDataPath, 'utf8');
+        const notesCopyInfo = notesCopy.map(n => ({ id: n.id, content: n.content }));
+        throw new Error(`During ${e.name}: ${e.message}. Current notesCopy: ${JSON.stringify(notesCopyInfo)}. File notes: ${fileNotes}`);
       }
     }
 
     index = indexMgr.getIndex();
-    if (index.notes.length !== notesCopy.length) throw new Error(`Post-ops length: ${index.notes.length} vs ${notesCopy.length}`);
+    if (index.notes.length !== notesCopy.length) {
+      const indexIds = index.notes.map(n => n.id);
+      const expectedIds = notesCopy.map(n => n.id);
+      throw new Error(`Post-ops length mismatch: index has ${index.notes.length}, expected ${notesCopy.length}. Index IDs: [${indexIds.join(', ')}]. Expected IDs: [${expectedIds.join(', ')}]`);
+    }
     const finalIds = new Set(index.notes.map(n => n.id));
-    for (const n of notesCopy) if (!finalIds.has(n.id)) throw new Error(`Missing ${n.id}`);
+    for (const n of notesCopy) {
+      if (!finalIds.has(n.id)) {
+        const indexIds = index.notes.map(n => n.id);
+        throw new Error(`Missing note ID ${n.id}. Index IDs: [${indexIds.join(', ')}]. NotesCopy IDs: [${notesCopy.map(n => n.id).join(', ')}]`);
+      }
+    }
   }));
-});
+}));
 
-// Property 6: TokenMap accuracy
-runProperty('TokenMap entries are accurate for all tokens', () => {
-  fc.assert(fc.property(notesArb, (notes) => {
-    const index = indexer.buildIndex(notes, testDataPath);
-    // Check forward mapping
+// Property 6: TokenMap entries accuracy
+testPromises.push(runProperty('TokenMap entries are accurate for all tokens', async () => {
+  await fc.assert(fc.asyncProperty(notesArb, async (notes) => {
+    const index = await indexer.buildIndex(notes, testDataPath);
+    // Forward mapping
     for (const note of index.notes) {
       for (const token of note.tokens) {
         if (!index.tokenMap[token] || !index.tokenMap[token].includes(note.id)) {
@@ -251,55 +273,50 @@ runProperty('TokenMap entries are accurate for all tokens', () => {
         }
       }
     }
-    // Check reverse mapping
+    // Reverse mapping
     for (const token of Object.keys(index.tokenMap)) {
       for (const id of index.tokenMap[token]) {
-        if (!index.notes.some(n => n.id === id)) {
-          throw new Error(`Token ${token} references missing note ${id}`);
-        }
+        if (!index.notes.some(n => n.id === id)) throw new Error(`Token ${token} references missing note ${id}`);
       }
     }
   }));
-});
+}));
 
 // Property 7: Fast scoring ranking guarantees
-runProperty('Fast scoring ranking guarantees', () => {
-  // Generate arbitrary query tokens and two note token sets
+testPromises.push(runProperty('Fast scoring ranking guarantees', () => {
   const tokenArb = fc.string({ minLength: 1, maxLength: 10 });
-  fc.assert(fc.property(
-    fc.array(tokenArb, { minSize: 1, maxSize: 5 }), // query tokens
-    fc.array(tokenArb), // note A tokens
-    fc.array(tokenArb), // note B tokens
+  return fc.assert(fc.property(
+    fc.array(tokenArb, { minSize: 1, maxSize: 5 }),
+    fc.array(tokenArb),
+    fc.array(tokenArb),
     (qArr, aArr, bArr) => {
       const queryTokens = new Set(qArr);
       const scoreA = computeScore(queryTokens, aArr);
       const scoreB = computeScore(queryTokens, bArr);
-      // Compute coverage for each
       const intersectionA = new Set([...queryTokens].filter(t => aArr.includes(t))).size;
       const coverageA = intersectionA / queryTokens.size;
       const intersectionB = new Set([...queryTokens].filter(t => bArr.includes(t))).size;
       const coverageB = intersectionB / queryTokens.size;
-      // If coverageA > coverageB, then scoreA must be > scoreB
       if (coverageA > coverageB) {
-        if (!(scoreA > scoreB)) {
-          throw new Error(`Coverage ${coverageA} should dominate ${coverageB}, but scores: ${scoreA} vs ${scoreB}`);
-        }
+        if (!(scoreA > scoreB)) throw new Error(`Coverage ${coverageA} should dominate ${coverageB}, but scores: ${scoreA} vs ${scoreB}`);
       }
-      // If coverage equal and token counts differ, shorter note should score higher
       if (coverageA === coverageB && aArr.length !== bArr.length) {
         const shorter = aArr.length < bArr.length;
         const dominated = shorter ? scoreB >= scoreA : scoreA >= scoreB;
-        if (dominated) {
-          throw new Error(`Equal coverage: shorter note (len=${shorter ? aArr.length : bArr.length}) should score higher than longer (len=${shorter ? bArr.length : aArr.length}). Got scores ${scoreA} vs ${scoreB}`);
-        }
+        if (dominated) throw new Error(`Equal coverage: shorter note should score higher than longer.`);
       }
     }
   ));
-});
+}));
 
-// Summary
-console.log(`\n📊 Property Test Results: ${passed} passed, ${failed} failed\n`);
-
-if (failed > 0) {
+// Run all tests sequentially to avoid interference from shared test directory
+(async () => {
+  for (const testPromise of testPromises) {
+    await testPromise;
+  }
+  console.log(`\n📊 Property Test Results: ${passed} passed, ${failed} failed\n`);
+  if (failed > 0) process.exit(1);
+})().catch(err => {
+  console.error('Test runner error:', err);
   process.exit(1);
-}
+});

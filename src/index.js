@@ -2,38 +2,27 @@
 
 const { program } = require('commander');
 const pkg = require('../package');
+const fs = require('fs');
+const path = require('path');
 
 program
   .name('memo')
   .description('CLI tool for quick notes')
   .version(pkg.version);
 
-// Register all command modules
-const commandModules = [
-  './commands/add',
-  './commands/list',
-  './commands/search',
-  './commands/delete',
-  './commands/edit',
-  './commands/untag',
-  './commands/stats',
-  './commands/tags',
-  './commands/import',
-  './commands/export',
-  './commands/export-csv',
-  './commands/backup',
-  './commands/restore',
-  './commands/trash',
-  './commands/trash-restore',
-  './commands/trash-list',
-  './commands/trash-empty',
-  './commands/purge',
-  './commands/config',
-  './commands/rebuild-index'
-];
+// Auto-discover command modules in the commands directory
+const commandsDir = path.join(__dirname, 'commands');
+const commandFiles = fs.readdirSync(commandsDir)
+  .filter(file => file.endsWith('.js') && !file.startsWith('.'));
 
-for (const cmd of commandModules) {
-  require(cmd)(program);
+for (const file of commandFiles) {
+  const cmdPath = path.join(commandsDir, file);
+  const register = require(cmdPath);
+  if (typeof register === 'function') {
+    register(program);
+  } else {
+    console.warn(`Skipping ${file}: exported value is not a function`);
+  }
 }
 
 program.parse();

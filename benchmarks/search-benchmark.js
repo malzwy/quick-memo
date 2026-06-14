@@ -49,6 +49,7 @@ function benchmark(fn, runs = measuredRuns) {
   return { avg, min, max, times };
 }
 
+(async () => {
 // Setup test directory
 const testDir = path.join(os.tmpdir(), 'quick-memo-bench');
 const testDataPath = path.join(testDir, 'notes.json');
@@ -101,7 +102,7 @@ console.log(`✅ Stored ${notesCount} notes at ${testDataPath}`);
 
 // Build index
 console.log('\nBuilding index...');
-const index = indexer.buildIndex(notes, testDataPath);
+const index = await indexer.buildIndex(notes, testDataPath);
 indexer.saveIndex(index, indexPath);
 console.log(`✅ Index built with ${index.noteCount} notes (${index.notes.length} entries)`);
 
@@ -169,3 +170,4 @@ console.log('- Index size is modest (stores all note data plus precomputed lower
 
 // Cleanup? Keep for manual inspection if needed. We'll leave it.
 console.log('\n✅ Benchmark complete. Files left at:', testDir);
+})();

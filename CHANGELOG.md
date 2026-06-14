@@ -8,10 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Config diff command**: `memo config diff` shows differences between current configuration and defaults (or another config file), with `--json` flag for machine-readable output. Helps users track customizations and migrate settings.
+- **Config validation on load**: Configuration is now validated when loaded. If invalid values are detected, the system logs errors and falls back to defaults, preventing runtime errors due to bad config.
+- **Expanded test coverage**: Added comprehensive test suites for config validation (`test-config-validation.js`), backup rotation (`test-backup-rotation.js`), and config diff command (`test-config-diff.js`).
 - **Shared text-utils module**: Extracted tokenization and scoring utilities into `src/lib/text-utils.js` for reuse across indexer and search components, reducing code duplication and improving maintainability.
 - **Automatic index upgrade and refresh with user feedback**: The index is now automatically built, upgraded, or refreshed before commands that rely on it, with clear progress messages. This ensures seamless upgrades from older index versions and immediate availability after external changes. The `IndexManager.ensureReady()` method coordinates this behavior across all commands (add, edit, delete, untag, trash, restore, purge, import, and search). Index version upgrades (from <3 to v3) are now performed automatically with a notification, removing the need for manual `rebuild-index` after upgrades.
 - **Property-based test suite for fast scoring consistency**: Added `tests/property.test.js` using `fast-check` to validate the fast token-based fuzzy search scoring algorithm. Ensures that notes with full query token coverage are always ranked higher than those with partial coverage, and that among full-coverage notes, shorter notes are preferred. These tests guard against regressions in relevance ranking.
 - **Optional fsync durability**: Set `QUICK_MEMO_FSYNC=1` to force `fsync()` on data and directory writes for extra persistence assurance against power loss/crashes. This adds negligible overhead when disabled (default).
+
+### Improved
+- **Config validation**: Config is now validated on load, providing early error detection and fallback to safe defaults.
+- **Test coverage**: Significant increase in statement coverage through new test suites targeting previously untested code paths.
 
 ### Improved
 - **Fast fuzzy search scoring**: The `--fast` token-based fuzzy algorithm now uses a hybrid metric combining query token coverage (primary) and note compactness (secondary). This yields more relevant rankings—notes containing all query tokens are prioritized, with shorter notes breaking ties—while maintaining O(candidate) performance on large datasets.
@@ -20,6 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Improved
 - **Shared FileLock verbose logging**: Added `ENVBUDDY_LOCK_VERBOSE=1` (and similar) to log lock contention details, helping diagnose concurrency issues.
 - Test coverage expanded with fsync environment variable test.
+
+### Improved
+- **Fuzzy cache persistence**: Debounced fuzzy cache writes to reduce I/O during rapid searches.
+- **CLI auto-discovery**: Command modules are now auto-loaded from the `commands/` directory, simplifying extension.
+
+### Performance
+- **Index sync optimization**: Incremental synchronization now uses a Map for O(1) note lookups, reducing time complexity from O(c·n) to O(c+n) where c = number of changed notes and n = total notes. This dramatically speeds up index reconciliation after small changes on large datasets.
+- **NoteMap caching**: The note lookup map used by the inverted index is now cached in memory by IndexManager, eliminating O(n) map reconstruction on every search. Subsequent searches benefit from instant note retrieval, improving overall search responsiveness, especially for repeated invocations.
 
 ## [1.15.0] - 2026-05-19
 
