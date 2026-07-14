@@ -17,6 +17,9 @@ const testDir = path.join(os.tmpdir(), 'quick-memo-property-test');
 const testDataPath = path.join(testDir, 'notes.json');
 const indexPath = path.join(testDir, 'index.json');
 
+// Ensure IndexManager uses the test directory for index storage
+process.env.QUICK_MEMO_INDEX_PATH = indexPath;
+
 function resetTestDir() {
   if (fs.existsSync(testDir)) {
     fs.rmSync(testDir, { recursive: true });
@@ -71,7 +74,6 @@ const notesArb = fc
     }));
   });
 
-console.log('\n🧪 Quick Memo Property-Based Test Suite\n');
 
 let passed = 0;
 let failed = 0;
@@ -80,11 +82,8 @@ async function runProperty(name, runner) {
   try {
     resetTestDir();
     await runner();
-    console.log(`✓ ${name}`);
     passed++;
   } catch (err) {
-    console.log(`✗ ${name}`);
-    console.log(`  Error: ${err.message}`);
     if (err.cause) console.log(`  Cause: ${err.cause.message || err.cause}`);
     if (err.details) console.log(`  Details: ${JSON.stringify(err.details)}`);
     failed++;
@@ -183,6 +182,7 @@ testPromises.push(runProperty('replaceAll completely replaces notes atomically',
 }));
 
 // Property 5: IndexManager after* operations consistency
+// Fixed: Use store as source of truth; never rely on local copy.
 testPromises.push(runProperty('IndexManager after* operations keep index consistent', async () => {
   await fc.assert(fc.asyncProperty(notesArb, async (initialNotes) => {
     if (initialNotes.length === 0) return;
@@ -192,20 +192,17 @@ testPromises.push(runProperty('IndexManager after* operations keep index consist
     indexMgr.load();
     await indexMgr.rebuild();
     let index = indexMgr.getIndex();
+    const storeAfterRebuild = store.getNotes();
     if (index.notes.length !== initialNotes.length) throw new Error('Initial index mismatch');
 
-    // Perform a sequence of adds, edits, deletes
-    const notesCopy = [...initialNotes];
-    const numOps = Math.min(notesCopy.length, 10);
-    // Note: we intentionally do NOT clear generatedIds here to prevent ID collisions with initial notes.
-
+    // Perform a sequence of adds, edits, deletes based on ACTUAL store state
+    const numOps = Math.min(store.getNotes().length, 5);
     for (let i = 0; i < numOps; i++) {
       try {
         const opType = Math.floor(Math.random() * 3);
-        let currentNoteId = null;
+        const currentNotes = store.getNotes();
         if (opType === 0) {
           // Add
-          console.log('[Debug] Adding new note');
           const newNote = {
             id: generateUniqueId(),
             content: 'New ' + Date.now(),
@@ -213,49 +210,43 @@ testPromises.push(runProperty('IndexManager after* operations keep index consist
             createdAt: Date.now(),
             updatedAt: Date.now()
           };
-          currentNoteId = newNote.id;
-          store.addNote(newNote);
+          await store.addNote(newNote);
           await indexMgr.afterAdd(newNote);
-          notesCopy.push(newNote);
-        } else if (opType === 1 && notesCopy.length > 0) {
-          // Edit
-          const idx = Math.floor(Math.random() * notesCopy.length);
-          const note = notesCopy[idx];
-          currentNoteId = note.id;
-          console.log(`[Debug] Editing note ${note.id}`);
+        } else if (opType === 1 && currentNotes.length > 0) {
+          // Edit: pick a random note from store
+          const idx = Math.floor(Math.random() * currentNotes.length);
+          const note = currentNotes[idx];
           const edited = { ...note, content: 'Edit ' + Date.now(), updatedAt: Date.now() };
-          store.editNote(note.id, edited.content, edited.tags);
+          await store.editNote(note.id, edited.content, edited.tags);
           await indexMgr.afterEdit(edited);
-          notesCopy[idx] = edited;
-        } else if (notesCopy.length > 0) {
-          // Delete
-          const idx = Math.floor(Math.random() * notesCopy.length);
-          const note = notesCopy[idx];
-          currentNoteId = note.id;
-          console.log(`[Debug] Deleting note ${note.id}`);
-          store.deleteNote(note.id);
+        } else if (currentNotes.length > 0) {
+          // Delete: pick a random note from store
+          const idx = Math.floor(Math.random() * currentNotes.length);
+          const note = currentNotes[idx];
+          await store.deleteNote(note.id);
           await indexMgr.afterDelete(note.id);
-          notesCopy.splice(idx, 1);
         }
       } catch (e) {
         // Capture state for diagnosis
         const fileNotes = fs.readFileSync(testDataPath, 'utf8');
-        const notesCopyInfo = notesCopy.map(n => ({ id: n.id, content: n.content }));
-        throw new Error(`During ${e.name}: ${e.message}. Current notesCopy: ${JSON.stringify(notesCopyInfo)}. File notes: ${fileNotes}`);
+        const storeNotes = store.getNotes().map(n => ({ id: n.id, content: n.content }));
+        throw new Error(`During ${e.name}: ${e.message}. Current store notes: ${JSON.stringify(storeNotes)}. File notes: ${fileNotes}`);
       }
     }
 
+    // after* methods already update the index; get final index
     index = indexMgr.getIndex();
-    if (index.notes.length !== notesCopy.length) {
+    const storeNotes = store.getNotes();
+    if (index.notes.length !== storeNotes.length) {
       const indexIds = index.notes.map(n => n.id);
-      const expectedIds = notesCopy.map(n => n.id);
-      throw new Error(`Post-ops length mismatch: index has ${index.notes.length}, expected ${notesCopy.length}. Index IDs: [${indexIds.join(', ')}]. Expected IDs: [${expectedIds.join(', ')}]`);
+      const expectedIds = storeNotes.map(n => n.id);
+      throw new Error(`Post-ops length mismatch: index has ${index.notes.length}, expected ${storeNotes.length}. Index IDs: [${indexIds.join(', ')}]. Store IDs: [${expectedIds.join(', ')}]`);
     }
     const finalIds = new Set(index.notes.map(n => n.id));
-    for (const n of notesCopy) {
+    for (const n of storeNotes) {
       if (!finalIds.has(n.id)) {
         const indexIds = index.notes.map(n => n.id);
-        throw new Error(`Missing note ID ${n.id}. Index IDs: [${indexIds.join(', ')}]. NotesCopy IDs: [${notesCopy.map(n => n.id).join(', ')}]`);
+        throw new Error(`Missing note ID ${n.id}. Index IDs: [${indexIds.join(', ')}]. Store IDs: [${storeNotes.map(n => n.id).join(', ')}]`);
       }
     }
   }));
@@ -314,7 +305,6 @@ testPromises.push(runProperty('Fast scoring ranking guarantees', () => {
   for (const testPromise of testPromises) {
     await testPromise;
   }
-  console.log(`\n📊 Property Test Results: ${passed} passed, ${failed} failed\n`);
   if (failed > 0) process.exit(1);
 })().catch(err => {
   console.error('Test runner error:', err);

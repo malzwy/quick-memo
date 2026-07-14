@@ -3,6 +3,36 @@ const path = require('path');
 const { validateFullConfig } = require('./configSchema');
 
 /**
+ * Configuration performance metrics (for debugging and optimization)
+ * Track cache hit rates and I/O operations
+ */
+const perfMetrics = {
+  cacheHits: 0,
+  cacheMisses: 0,
+  diskReads: 0,
+  diskWrites: 0,
+  validationErrors: 0
+};
+
+/**
+ * Get configuration performance metrics (for debugging)
+ */
+function getPerfMetrics() {
+  return { ...perfMetrics }; // Return copy
+}
+
+/**
+ * Reset performance metrics (for testing)
+ */
+function resetPerfMetrics() {
+  perfMetrics.cacheHits = 0;
+  perfMetrics.cacheMisses = 0;
+  perfMetrics.diskReads = 0;
+  perfMetrics.diskWrites = 0;
+  perfMetrics.validationErrors = 0;
+}
+
+/**
  * Get the configuration file path based on current environment
  */
 function getConfigPath() {
@@ -68,6 +98,12 @@ function getDefaultConfig() {
       showStart: 3,            // Number of characters to show at start
       showEnd: 3,              // Number of characters to show at end
       customPatterns: []       // User-defined regex patterns as strings
+    },
+    // Performance tuning (advanced)
+    performance: {
+      indexRebuildBatchSize: 1000, // Notes per batch during rebuild (progress reporting)
+      cacheWarmupOnLoad: true,     // Pre-populate caches after index load
+      debugTiming: false           // Log timing measurements for operations
     }
   };
 }
@@ -76,6 +112,10 @@ function getDefaultConfig() {
  * Load configuration from disk, with caching
  * After the first load, subsequent calls return the cached config
  * without any filesystem access. Cache is updated via saveConfig().
+ *
+ * Performance optimization: Cache is validated using file stats (size+mtime)
+ * to detect external changes. This allows hot-reload when config is modified
+ * by other processes (e.g., editor) without sacrificing read performance.
  */
 function loadConfig() {
   const configPath = getConfigPath();
@@ -85,11 +125,14 @@ function loadConfig() {
     try {
       const stats = fs.statSync(configPath);
       if (configCacheStats && stats.size === configCacheStats.size && stats.mtimeMs === configCacheStats.mtimeMs) {
+        perfMetrics.cacheHits++;
         return configCache;
       }
       // else file changed; fall through to reload
+      perfMetrics.cacheMisses++;
     } catch (e) {
       // file missing or inaccessible, fall through to reload
+      perfMetrics.cacheMisses++;
     }
   }
 
@@ -102,12 +145,14 @@ function loadConfig() {
       // Capture file stats after read
       const stats = fs.statSync(configPath);
       configCacheStats = { size: stats.size, mtimeMs: stats.mtimeMs };
+      perfMetrics.diskReads++;
     } else {
       config = getDefaultConfig();
       configCacheStats = null;
     }
   } catch (e) {
     // On any read/parse error, use defaults
+    perfMetrics.validationErrors++;
     config = getDefaultConfig();
     configCacheStats = null;
   }
@@ -136,6 +181,9 @@ function loadConfig() {
 /**
  * Save configuration to disk atomically
  * Updates the in-memory cache to reflect the new configuration.
+ *
+ * Performance: Uses atomic write pattern (temp file + rename)
+ * to prevent corruption from concurrent processes or crashes.
  */
 function saveConfig(config) {
   ensureConfigDir();
@@ -144,6 +192,8 @@ function saveConfig(config) {
   const tempPath = configPath + '.tmp';
   fs.writeFileSync(tempPath, JSON.stringify(config, null, 2), 'utf8');
   fs.renameSync(tempPath, configPath);
+
+  perfMetrics.diskWrites++;
 
   // Update cache to the new config and record file stats
   try {
@@ -261,4 +311,6 @@ module.exports = {
   setConfigKey,
   resetConfig,
   getCommandConfig,
+  getPerfMetrics,
+  resetPerfMetrics
 };

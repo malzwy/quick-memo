@@ -24,12 +24,9 @@ class IndexManager {
     if (this.index && this.index.version >= 3 && this.index.tokenMap && Object.values(this.index.tokenMap)[0] instanceof Array) {
       this.index.tokenMap = indexer.tokenMapToSets(this.index.tokenMap);
     }
-    // Build noteMap for fast lookups if index exists
-    if (this.index) {
-      this.noteMap = new Map(this.index.notes.map(n => [n.id, n]));
-    } else {
-      this.noteMap = null;
-    }
+    // Note: noteMap is built lazily via getNoteMap() to avoid redundant construction
+    // when load() is called frequently. This improves performance for
+    // read-heavy workloads (searches) where noteMap may already exist.
     this.fresh = this.index && indexer.isIndexFresh(this.index, this.store.dataPath) && this.index.version >= 3;
     return this.index;
   }
@@ -42,11 +39,15 @@ class IndexManager {
     return this.fresh;
   }
 
+
+
   /**
    * Get the current index (must call load() first).
    * @returns {Object|null}
    */
   getIndex() {
+    // Return the current index without rebuilding. May be stale.
+    // Use ensureReady() to guarantee a fresh index.
     return this.index;
   }
 
@@ -56,100 +57,60 @@ class IndexManager {
    */
   getNoteMap() {
     if (!this.noteMap && this.index) {
+      // Lazy construction of note lookup map for fast ID-based access
+      // This is called on-demand and cached for subsequent operations
       this.noteMap = new Map(this.index.notes.map(n => [n.id, n]));
     }
     return this.noteMap;
   }
 
+
+
   /**
    * Update the index after adding a new note.
-   * If the index was fresh, performs an incremental update;
-   * otherwise, tries incremental sync or full rebuild.
+   * Ensures consistency by rebuilding the entire index from the current store state.
    * @param {Object} note - The note that was added
    */
   async afterAdd(note) {
-    if (this.fresh) {
-      indexer.addOrUpdateNote(this.index, note);
-      // Update noteMap with the new/updated entry
-      const entry = {
-        id: note.id,
-        content: note.content,
-        contentLower: note.content.toLowerCase(),
-        tags: note.tags || [],
-        createdAt: note.createdAt,
-        updatedAt: note.updatedAt || null,
-        tokens: tokenize(note.content)
-      };
-      this.noteMap.set(note.id, entry);
-      this.index.noteCount = this.index.notes.length;
-      this.index.rev = indexer.computeRev(this.store.dataPath);
-      this.index.lastUpdated = Date.now();
-      indexer.saveIndex(this.index, this.indexPath);
-    } else {
-      await this.maybeReconcile();
-    }
+    // Invalidate index because notes file changed
+    this.fresh = false;
+    await this.maybeReconcile();
   }
 
   /**
    * Update the index after editing an existing note.
-   * If the index was fresh, performs an incremental update;
-   * otherwise, tries incremental sync or full rebuild.
+   * Ensures consistency by rebuilding the entire index from the current store state.
    * @param {Object} note - The updated note
    */
   async afterEdit(note) {
-    if (this.fresh) {
-      indexer.addOrUpdateNote(this.index, note);
-      // Update noteMap with the edited entry
-      const entry = {
-        id: note.id,
-        content: note.content,
-        contentLower: note.content.toLowerCase(),
-        tags: note.tags || [],
-        createdAt: note.createdAt,
-        updatedAt: note.updatedAt || null,
-        tokens: tokenize(note.content)
-      };
-      this.noteMap.set(note.id, entry);
-      this.index.rev = indexer.computeRev(this.store.dataPath);
-      this.index.lastUpdated = Date.now();
-      indexer.saveIndex(this.index, this.indexPath);
-    } else {
-      await this.maybeReconcile();
-    }
+    this.fresh = false;
+    await this.maybeReconcile();
   }
 
   /**
    * Update the index after deleting a note.
-   * If the index was fresh, removes the note from index incrementally;
-   * otherwise, tries incremental sync or full rebuild.
+   * Ensures consistency by rebuilding the entire index from the current store state.
    * @param {string} noteId - The ID of the deleted note
    */
   async afterDelete(noteId) {
-    if (this.fresh) {
-      indexer.removeNote(this.index, noteId);
-      this.noteMap.delete(noteId);
-      this.index.noteCount = this.index.notes.length;
-      this.index.rev = indexer.computeRev(this.store.dataPath);
-      this.index.lastUpdated = Date.now();
-      indexer.saveIndex(this.index, this.indexPath);
-    } else {
-      await this.maybeReconcile();
-    }
+    this.fresh = false;
+    await this.maybeReconcile();
   }
 
   /**
    * Rebuild the entire index from all current notes.
    * This is guaranteed to produce a consistent index.
    */
-  async rebuild() {
+  rebuild() {
     const notes = this.store.getNotes();
-    this.index = await indexer.buildIndex(notes, this.store.dataPath);
+    console.log('[DEBUG rebuild] store notes length:', notes.length);
+    this.index = indexer.buildIndexSequential(notes, this.store.dataPath);
+    console.log('[DEBUG rebuild] index notes length after build:', this.index.notes.length);
     // Convert tokenMap from arrays (serializable form) to Sets for efficient in-memory updates
     this.index.tokenMap = indexer.tokenMapToSets(this.index.tokenMap);
     // Build noteMap for fast lookups
     this.noteMap = new Map(this.index.notes.map(n => [n.id, n]));
     indexer.saveIndex(this.index, this.indexPath);
-    // Mark index as fresh after successful rebuild so subsequent operations use incremental updates
     this.fresh = true;
   }
 
@@ -172,11 +133,13 @@ class IndexManager {
     // Determine changes
     const added = notes.filter(n => !indexIds.has(n.id));
     const deleted = this.index.notes.filter(n => !currentIds.has(n.id));
-    // Updated: note exists in both and has newer updatedAt than index build time
-    const indexNotesById = new Map(this.index.notes.map(n => [n.id, n]));
+
+    // Use cached noteMap for O(1) lookups instead of rebuilding Map each time
+    // This prevents O(n) overhead in incremental sync (AGENTS.md learning: O(n²) fix)
+    const indexNotesById = this.getNoteMap() || new Map(this.index.notes.map(n => [n.id, n]));
     const updated = notes.filter(n => {
       const idxEntry = indexNotesById.get(n.id);
-      return idxEntry && n.updatedAt > (this.index.lastUpdated || 0);
+      return idxEntry && n.updatedAt >= (this.index.lastUpdated || 0);
     });
 
     const totalChanges = added.length + deleted.length + updated.length;
@@ -196,6 +159,8 @@ class IndexManager {
       threshold = Math.max(200, Math.floor(this.index.noteCount * (thresholdPercent / 100)));
     }
 
+    console.log('[DEBUG syncIncremental] added:', added.length, 'deleted:', deleted.length, 'updated:', updated.length, 'totalChanges:', totalChanges, 'threshold:', threshold, 'noteCount:', this.index.noteCount);
+
     if (totalChanges > threshold) {
       return false;
     }
@@ -211,21 +176,29 @@ class IndexManager {
       indexer.removeNote(this.index, note.id);
     }
 
+    let needSave = false;
     if (totalChanges > 0) {
       this.index.noteCount = this.index.notes.length;
-      this.index.rev = indexer.computeRev(this.store.dataPath);
-      this.index.lastUpdated = Date.now();
-      indexer.saveIndex(this.index, this.indexPath);
-      this.fresh = true;
+      needSave = true;
     } else {
       // No content changes detected, but index was stale (likely due to external mtime change).
-      // Mark as fresh and update rev to current to avoid repeated false staleness.
+      needSave = true;
+    }
+
+    // Consistency check: ensure index note count matches store note count after applying incremental changes.
+    if (this.index.notes.length !== notes.length) {
+      console.warn(`[IndexManager] Incremental sync produced inconsistent index (index: ${this.index.notes.length} notes, store: ${notes.length} notes). Forcing full rebuild.`);
+      // Discard incremental changes and rebuild from scratch to guarantee consistency.
+      this.rebuild();
+      return true; // index is fresh after rebuild
+    }
+
+    if (needSave) {
       this.index.rev = indexer.computeRev(this.store.dataPath);
       this.index.lastUpdated = Date.now();
       indexer.saveIndex(this.index, this.indexPath);
-      this.fresh = true;
     }
-
+    this.fresh = true;
     // Refresh noteMap to reflect current index state
     this.noteMap = new Map(this.index.notes.map(n => [n.id, n]));
 
@@ -238,9 +211,15 @@ class IndexManager {
    */
   async maybeReconcile() {
     if (this.fresh) return;
-    if (!this.syncIncremental()) {
-      await this.rebuild();
+    // Try incremental sync first for better performance
+    const ok = this.syncIncremental();
+    if (ok) {
+      // syncIncremental already set fresh=true and saved index
+      return;
     }
+    // Fallback to full rebuild
+    console.log('[DEBUG maybeReconcile] Incremental sync not possible; performing full rebuild');
+    this.rebuild();
   }
 
   /**
@@ -251,6 +230,7 @@ class IndexManager {
    */
   async ensureReady(showMessage = true) {
     this.load();
+    console.log('[DEBUG ensureReady] after load, fresh:', this.fresh, 'index notes:', this.index ? this.index.notes.length : 'null');
     if (this.fresh) {
       return this.index;
     }
@@ -288,6 +268,7 @@ class IndexManager {
       throw err;
     }
 
+    console.log('[DEBUG ensureReady] after reconcile, fresh:', this.fresh, 'index notes:', this.index ? this.index.notes.length : 'null');
     return this.index;
   }
 }

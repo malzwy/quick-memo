@@ -54,6 +54,47 @@ These optimizations are particularly impactful for:
 - Incremental syncs after adding/editing a few notes among many (e.g., 10 changes in a 10K-note collection)
 - Workflows with frequent search operations
 
+## 📊 Performance Tuning
+
+Quick Memo includes advanced configuration for power users with large note collections:
+
+### Index Synchronization
+
+When notes are modified, the search index can be updated incrementally (fast) or fully rebuilt (thorough). The sync threshold determines when a full rebuild is triggered:
+
+```bash
+# Aggressive incremental sync (rebuild only after many changes)
+memo config set sync.thresholdPercent 10
+
+# Conservative (rebuild more frequently, safer for critical data)
+memo config set sync.thresholdPercent 2
+
+# Absolute threshold (overrides percentage)
+memo config set sync.thresholdAbsolute 500  # rebuild after 500 changes
+```
+
+**Default**: 5% with a floor of 200 changes. This balances performance vs. consistency.
+
+### Performance Debugging
+
+Enable timing diagnostics to identify slow operations:
+
+```bash
+memo config set performance.debugTiming true
+```
+
+This logs operation durations to stderr, helping you tune your configuration.
+
+### Environment Variables
+
+- `QUICK_MEMO_PATH` – Custom path to notes.json file
+- `QUICK_MEMO_CONFIG` – Custom path to config.json file
+- `QUICK_MEMO_INDEX_PATH` – Custom path to index.json file
+- `QUICK_MEMO_COMPACT` – Set to `0` for human-readable JSON in data files
+- `QUICK_MEMO_FSYNC` – Set to `1` for extra durability (fsync after writes, slower)
+- `QUICK_MEMO_LOCK_TIMEOUT` – Lock acquisition timeout in milliseconds (default ~30000)
+- `QUICK_MEMO_PARALLEL_THRESHOLD` – Minimum notes for parallel index build (default 1000)
+
 ## 🔒 Concurrency & Data Integrity
 
 Quick Memo uses a file-based locking mechanism (`FileLock`) to prevent concurrent write corruption when multiple CLI processes access the same notes file.
@@ -428,15 +469,42 @@ export QUICK_MEMO_PATH="/path/to/notes.json"
 
 Quick Memo supports a configuration file to set default options. By default, the config file is located at `~/.quick-memo/config.json`. You can override this location by setting the `QUICK_MEMO_CONFIG` environment variable.
 
-### Supported settings
+### Supported configuration keys:
+- `list.sortBy`: `created`, `updated`, or `content`
+- `list.sortAsc`: boolean
+- `list.detailed`: boolean
+- `list.json`: boolean
+- `delete.confirmDelete`: boolean
+- `trash-empty.confirmDelete`: boolean
+- `purge.confirmDelete`: boolean
+- `sync.thresholdPercent`: percentage of total notes that triggers full rebuild (default 5%, min 200 notes)
+- `sync.thresholdAbsolute`: absolute change count that forces rebuild (overrides percent if > 0)
+- `masking.autoMask`: enable automatic masking of sensitive content (default true)
+- `masking.maskChar`: character used for masking (default '*')
+- `masking.showStart`: number of leading characters to reveal (default 3)
+- `masking.showEnd`: number of trailing characters to reveal (default 3)
+- `masking.customPatterns`: array of regex patterns for detecting sensitive data
+- `performance.indexRebuildBatchSize`: progress reporting batch size (advanced)
+- `performance.cacheWarmupOnLoad`: pre-populate caches after index load (default true)
+- `performance.debugTiming`: log operation timings (default false)
 
-- `list.sortBy`: Default sort field for `memo list`. Options: `created`, `updated`, `content`. Default: `created`.
-- `list.sortAsc`: Default sort order (boolean). `true` for ascending, `false` for descending (dates default to descending). Default: `false`.
-- `list.detailed`: Default to detailed view when listing notes (boolean). Default: `false`.
-- `list.json`: Default output in JSON format (boolean). Default: `false`.
-- `delete.confirmDelete`: Whether to show confirmation prompt before deleting a note. Set to `false` to skip confirmation. Default: `true`.
-- `trash-empty.confirmDelete`: Whether to show confirmation before emptying trash. Default: `true`.
-- `purge.confirmDelete`: Whether to show confirmation before purging a single note. Default: `true`.
+Configuration example:
+```json
+{
+  "list": {
+    "sortBy": "updated",
+    "sortAsc": true
+  },
+  "sync": {
+    "thresholdPercent": 3
+  },
+  "masking": {
+    "autoMask": true,
+    "showStart": 3,
+    "showEnd": 3
+  }
+}
+```
 
 Configuration example:
 

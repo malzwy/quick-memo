@@ -59,6 +59,18 @@ function tokenMapToSets(tokenMapArrays) {
   return result;
 }
 
+// Ensure tokenMap values are Sets, converting any arrays leftover (defensive)
+function ensureTokenMapSets(index) {
+  if (!index || !index.tokenMap || typeof index.tokenMap !== 'object' || Array.isArray(index.tokenMap)) {
+    return;
+  }
+  for (const token of Object.keys(index.tokenMap)) {
+    if (Array.isArray(index.tokenMap[token])) {
+      index.tokenMap[token] = new Set(index.tokenMap[token]);
+    }
+  }
+}
+
 function buildIndexSequential(notes, notesPath) {
   const rev = computeRev(notesPath);
   const noteEntries = [];
@@ -204,13 +216,34 @@ function isIndexFresh(index, notesPath) {
   return index.rev === currentRev;
 }
 
-function addOrUpdateNote(index, note) {
-  const tokens = tokenize(note.content);
+function addOrUpdateNote(index, note, options = {}) {
+  // Accept precomputed tokens and entry to avoid redundant work
+  let tokens = options.tokens;
+  let entry = options.entry;
+
+  if (!tokens) {
+    tokens = tokenize(note.content);
+  }
+  if (!entry) {
+    entry = {
+      id: note.id,
+      content: note.content,
+      contentLower: note.content.toLowerCase(),
+      tags: note.tags || [],
+      createdAt: note.createdAt,
+      updatedAt: note.updatedAt || null,
+      tokens
+    };
+  }
+
   const existingIdx = index.notes.findIndex(n => n.id === note.id);
-  // Ensure tokenMap exists (should be Set-based)
+  // Ensure tokenMap exists and entries are Sets (defensive)
   if (!index.tokenMap) {
     index.tokenMap = Object.create(null);
   }
+  // Convert any array entries to Sets (handle old/edge cases)
+  ensureTokenMapSets(index);
+
   if (existingIdx !== -1) {
     // Remove old tokens from tokenMap before updating
     const oldNote = index.notes[existingIdx];
@@ -224,28 +257,10 @@ function addOrUpdateNote(index, note) {
         }
       }
     }
-    // Update note entry
-    const entry = {
-      id: note.id,
-      content: note.content,
-      contentLower: note.content.toLowerCase(),
-      tags: note.tags || [],
-      createdAt: note.createdAt,
-      updatedAt: note.updatedAt || null,
-      tokens
-    };
+    // Update note entry (use provided entry)
     index.notes[existingIdx] = entry;
   } else {
-    // Add new note
-    const entry = {
-      id: note.id,
-      content: note.content,
-      contentLower: note.content.toLowerCase(),
-      tags: note.tags || [],
-      createdAt: note.createdAt,
-      updatedAt: note.updatedAt || null,
-      tokens
-    };
+    // Add new note (use provided entry)
     index.notes.push(entry);
   }
   // Add new tokens to tokenMap
@@ -256,9 +271,12 @@ function addOrUpdateNote(index, note) {
     index.tokenMap[token].add(note.id);
   }
   index.noteCount = index.notes.length;
+  return entry;
 }
 
 function removeNote(index, noteId) {
+  // Ensure tokenMap entries are Sets (defensive)
+  ensureTokenMapSets(index);
   const noteIndex = index.notes.findIndex(n => n.id === noteId);
   if (noteIndex !== -1) {
     const note = index.notes[noteIndex];
@@ -285,6 +303,7 @@ module.exports = {
   computeRev,
   needsRebuild,
   buildIndex,
+  buildIndexSequential,
   loadIndex,
   saveIndex,
   getIndexedNotes,

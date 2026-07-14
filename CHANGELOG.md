@@ -8,13 +8,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Config diff command**: `memo config diff` shows differences between current configuration and defaults (or another config file), with `--json` flag for machine-readable output. Helps users track customizations and migrate settings.
-- **Config validation on load**: Configuration is now validated when loaded. If invalid values are detected, the system logs errors and falls back to defaults, preventing runtime errors due to bad config.
-- **Expanded test coverage**: Added comprehensive test suites for config validation (`test-config-validation.js`), backup rotation (`test-backup-rotation.js`), and config diff command (`test-config-diff.js`).
-- **Shared text-utils module**: Extracted tokenization and scoring utilities into `src/lib/text-utils.js` for reuse across indexer and search components, reducing code duplication and improving maintainability.
-- **Automatic index upgrade and refresh with user feedback**: The index is now automatically built, upgraded, or refreshed before commands that rely on it, with clear progress messages. This ensures seamless upgrades from older index versions and immediate availability after external changes. The `IndexManager.ensureReady()` method coordinates this behavior across all commands (add, edit, delete, untag, trash, restore, purge, import, and search). Index version upgrades (from <3 to v3) are now performed automatically with a notification, removing the need for manual `rebuild-index` after upgrades.
-- **Property-based test suite for fast scoring consistency**: Added `tests/property.test.js` using `fast-check` to validate the fast token-based fuzzy search scoring algorithm. Ensures that notes with full query token coverage are always ranked higher than those with partial coverage, and that among full-coverage notes, shorter notes are preferred. These tests guard against regressions in relevance ranking.
-- **Optional fsync durability**: Set `QUICK_MEMO_FSYNC=1` to force `fsync()` on data and directory writes for extra persistence assurance against power loss/crashes. This adds negligible overhead when disabled (default).
+- **Config performance metrics**: Added `getPerfMetrics()` for debugging cache hit rates and I/O operations. Exposes cache hit/miss counts, disk reads/writes, and validation errors to help tune configuration and diagnose performance issues.
+- **Performance tuning options**: Added `performance.*` configuration namespace with advanced settings:
+  - `performance.indexRebuildBatchSize`: Progress reporting batch size during index rebuilds
+  - `performance.cacheWarmupOnLoad`: Pre-populate caches after index load (default true)
+  - `performance.debugTiming`: Enable detailed operation timing logs (default false)
+- **Enhanced config documentation**: README now includes complete configuration reference and performance tuning section with examples for sync thresholds and environment variables.
+
+### Improved
+- **IndexManager noteMap caching**: Refactored `load()` to avoid redundant noteMap construction. Now noteMap is built lazily on first `getNoteMap()` call and cached. This eliminates O(n) map reconstruction on every search, improving responsiveness for repeated searches.
+- **Incremental sync efficiency**: `syncIncremental()` now reuses the cached noteMap via `getNoteMap()` instead of creating a new Map on each call, reducing overhead and avoiding the O(n) cost identified in previous learnings. This makes small incremental updates on large datasets (10k+ notes) more efficient.
+- **Configuration system**: Added comprehensive performance monitoring and better error resilience. Cache tracking now includes hit/miss stats for optimization.
+- **Benchmarking**: Added new benchmark script (`benchmarks/index-manager-optimization.js`) to measure noteMap construction and sync performance improvements.
+
+### Changed
+- Updated documentation to reflect enhanced configuration options and performance characteristics.
+- Improved module comments for clarity on lazy initialization patterns.
+
+### Fixed
+- Minor: Ensured config cache properly invalidates on external file changes using combined size+mtime checks.
+
+---
 
 ### Improved
 - **Config validation**: Config is now validated on load, providing early error detection and fallback to safe defaults.
